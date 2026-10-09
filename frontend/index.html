@@ -3,64 +3,136 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#f5f7f2" />
-    <title>带饭营养规划</title>
+    <meta name="theme-color" content="#f4f6f0" />
+    <title>一盘好饭 · 带饭营养规划</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
-    <main class="shell">
-      <header class="hero">
-        <p class="eyebrow">MEAL PREP MVP</p>
-        <h1>把本周带饭安排好。</h1>
-        <p class="muted">先定目标，再按生重采购和备餐。</p>
+    <div class="app-shell">
+      <header class="topbar">
+        <button class="brand" data-view="baseline" type="button">
+          <span class="brand-mark">一盘<span>好饭</span></span>
+          <span class="brand-caption">MEAL PREP PLANNER</span>
+        </button>
+        <div class="connection-status" aria-live="polite">
+          <span id="health-dot" class="status-dot"></span>
+          <span id="health-text">连接检查中</span>
+        </div>
       </header>
 
-      <section class="card" aria-labelledby="status-title">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">PROJECT STATUS</p>
-            <h2 id="status-title">脚手架已就绪</h2>
-          </div>
-          <span id="health-badge" class="badge">检查中</span>
-        </div>
-        <p id="health-text" class="muted">正在连接本地 API……</p>
-      </section>
+      <nav class="main-nav" aria-label="主导航">
+        <button class="nav-item active" data-view="baseline" type="button"><span>◎</span>营养基线</button>
+        <button class="nav-item" data-view="recipes" type="button"><span>▦</span>我的菜谱</button>
+        <button class="nav-item" data-view="planner" type="button"><span>▤</span>周度计划</button>
+        <button class="nav-item" data-view="shopping" type="button"><span>□</span>采购清单</button>
+      </nav>
 
-      <section class="card" aria-labelledby="nutrition-title">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">ONBOARDING</p>
-            <h2 id="nutrition-title">营养基线</h2>
-          </div>
-          <span class="badge secondary">API 骨架</span>
-        </div>
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-        <form id="nutrition-form" class="form-grid">
-          <label>性别<select name="sex"><option value="female">女性</option><option value="male">男性</option></select></label>
-          <label>年龄<input name="age" type="number" min="14" max="100" value="30" required /></label>
-          <label>身高 cm<input name="height_cm" type="number" min="101" max="250" value="165" required /></label>
-          <label>体重 kg<input name="weight_kg" type="number" min="26" max="300" value="60" required /></label>
-          <label>活动系数<select name="activity_factor"><option value="1.2">久坐 · 1.2</option><option value="1.375">偶尔活动 · 1.375</option><option value="1.55">规律训练 · 1.55</option></select></label>
-          <label>目标<select name="goal"><option value="cut">减脂</option><option value="maintain">维持</option><option value="bulk">增肌</option></select></label>
-          <button type="submit">计算推荐值</button>
-        </form>
-        <div id="nutrition-result" class="result-grid" hidden></div>
-      </section>
-
-      <section class="roadmap card" aria-labelledby="roadmap-title">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">MVP ROADMAP</p>
-            <h2 id="roadmap-title">下一步模块</h2>
+      <main>
+        <section id="baseline-view" class="view active" aria-labelledby="baseline-title">
+          <div class="page-intro">
+            <p class="eyebrow">01 · START WITH YOUR BASELINE</p>
+            <h1 id="baseline-title">把今天的目标，<em>变成一周的饭。</em></h1>
+            <p class="lead">先根据你的身体数据估算目标，再用每一盘菜和每一克生重，把计划落到厨房里。</p>
           </div>
-        </div>
-        <div class="roadmap-list">
-          <div><span>01</span><strong>菜谱管理</strong><small>待接入数据库</small></div>
-          <div><span>02</span><strong>周度规划</strong><small>待确认表结构</small></div>
-          <div><span>03</span><strong>采购清单</strong><small>待实现合并逻辑</small></div>
-        </div>
-      </section>
-    </main>
+
+          <section class="panel" aria-labelledby="baseline-form-title">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">NUTRITION BASELINE</p>
+                <h2 id="baseline-form-title">建立你的营养基线</h2>
+              </div>
+              <span class="pill soft">服务端计算</span>
+            </div>
+            <form id="nutrition-form" class="form-grid">
+              <label>性别<select name="sex"><option value="female">女性</option><option value="male">男性</option></select></label>
+              <label>年龄<input name="age" type="number" min="14" max="100" value="30" required /></label>
+              <label>身高 <span class="unit">cm</span><input name="height_cm" type="number" min="101" max="250" value="165" required /></label>
+              <label>体重 <span class="unit">kg</span><input name="weight_kg" type="number" min="26" max="300" value="60" required /></label>
+              <label>活动系数<select name="activity_factor"><option value="1.2">久坐 · 1.2</option><option value="1.375">偶尔活动 · 1.375</option><option value="1.55">规律训练 · 1.55</option></select></label>
+              <label>目标<select name="goal"><option value="cut">减脂</option><option value="maintain">维持</option><option value="bulk">增肌</option></select></label>
+              <button class="primary-button full-span" type="submit">计算我的推荐值 <span>→</span></button>
+            </form>
+            <div id="nutrition-result" class="nutrition-result" hidden></div>
+            <p class="form-note">推荐值只是起点。你可以在结果页手动调整，确认后会作为后续周计划的目标快照。</p>
+          </section>
+
+          <section class="panel baseline-status" aria-labelledby="baseline-status-title">
+            <div class="panel-heading compact">
+              <div>
+                <p class="eyebrow">YOUR CURRENT TARGET</p>
+                <h2 id="baseline-status-title">当前营养目标</h2>
+              </div>
+              <button class="text-button" data-action="go-planner" type="button">去做周计划 <span>→</span></button>
+            </div>
+            <div id="saved-baseline" class="saved-baseline"></div>
+          </section>
+        </section>
+
+        <section id="recipes-view" class="view" aria-labelledby="recipes-title" hidden>
+          <div class="page-intro page-intro-row">
+            <div>
+              <p class="eyebrow">02 · YOUR ONE-PLATE RECIPES</p>
+              <h1 id="recipes-title">一盘菜，刚刚好。</h1>
+              <p class="lead">按一盘可直接食用的份量录入生重。计划吃几盘，就在周计划里调整数量。</p>
+            </div>
+            <button class="primary-button" data-action="new-recipe" type="button">＋ 新建菜谱</button>
+          </div>
+          <div id="recipe-editor" class="panel editor-panel" hidden></div>
+          <div id="recipe-list" class="recipe-list"></div>
+        </section>
+
+        <section id="planner-view" class="view" aria-labelledby="planner-title" hidden>
+          <div class="page-intro page-intro-row">
+            <div>
+              <p class="eyebrow">03 · PLAN YOUR WEEK</p>
+              <h1 id="planner-title">把一周排进日历。</h1>
+              <p class="lead">午餐和晚餐可以各放多道菜。早餐先保留位置，不会被误判成营养不足。</p>
+            </div>
+            <button class="outline-button" data-view="shopping" type="button">查看采购单 <span>→</span></button>
+          </div>
+          <section class="panel week-toolbar" aria-label="选择计划周">
+            <button class="icon-button" data-action="previous-week" type="button" aria-label="上一周">←</button>
+            <label class="week-picker">计划周 <input id="week-start" type="date" /></label>
+            <button class="icon-button" data-action="next-week" type="button" aria-label="下一周">→</button>
+            <button class="text-button today-button" data-action="current-week" type="button">回到本周</button>
+          </section>
+          <div id="plan-target" class="target-strip"></div>
+          <div id="planner-grid" class="planner-grid"></div>
+          <div id="meal-editor" class="panel editor-panel" hidden></div>
+          <section class="panel summary-panel" aria-labelledby="summary-title">
+            <div class="panel-heading compact">
+              <div>
+                <p class="eyebrow">WEEKLY NUTRITION</p>
+                <h2 id="summary-title">已规划营养</h2>
+              </div>
+              <span class="pill soft">按菜谱实时汇总</span>
+            </div>
+            <div id="planner-summary"></div>
+          </section>
+        </section>
+
+        <section id="shopping-view" class="view" aria-labelledby="shopping-title" hidden>
+          <div class="page-intro page-intro-row">
+            <div>
+              <p class="eyebrow">04 · SHOPPING LIST</p>
+              <h1 id="shopping-title">照着生重，买刚好。</h1>
+              <p class="lead">清单会合并本周菜谱里的同一种食材。人工输入餐不会被算进采购量。</p>
+            </div>
+            <button class="outline-button" data-view="planner" type="button">回到周计划 <span>→</span></button>
+          </div>
+          <section class="panel shopping-meta">
+            <div><span class="eyebrow">CURRENT WEEK</span><strong id="shopping-week"></strong></div>
+            <div id="shopping-count" class="shopping-count"></div>
+          </section>
+          <div id="shopping-content" class="shopping-content"></div>
+        </section>
+      </main>
+
+      <footer class="app-footer">一盘好饭 · 以生重规划，以一周为单位准备</footer>
+    </div>
+    <script src="/static/app-core.js"></script>
     <script src="/static/app.js" defer></script>
   </body>
 </html>
