@@ -1,0 +1,36 @@
+{
+  "mode": "email_password_mvp",
+  "project_ref": "ziusvgtrmarbkmrvnpyq",
+  "email": {
+    "enabled": true,
+    "allow_signup": true,
+    "require_verification": false,
+    "password_login": true,
+    "otp_login": false,
+    "magic_link_login": false
+  },
+  "phone": {"enabled": false},
+  "anonymous_sign_in": {"enabled": false},
+  "session": {
+    "access_token_expiry_seconds": 3600,
+    "refresh_token_rotation": true,
+    "refresh_token_reuse_interval_seconds": 10
+  },
+  "delivery": {
+    "required_for_mvp": false,
+    "status": "deferred",
+    "password_recovery": "deferred"
+  },
+  "future_email_otp": {
+    "enabled": false,
+    "otp_length": 6,
+    "otp_expiry_seconds": 600,
+    "resend_interval_seconds": 60,
+    "template": "templates/email-otp.html",
+    "requires_verified_sender_and_delivery_acceptance": true
+  },
+  "deployment": {
+    "kind": "desired_policy_not_applied_hosted_configuration",
+    "requires_dashboard_or_management_api": true
+  }
+}
