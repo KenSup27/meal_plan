@@ -317,19 +317,12 @@ body.auth-pending .app-shell, body.auth-required .app-shell { display: none; }
 .auth-field label, .auth-form > label { color: #64786b; font-size: 12px; }
 .auth-field small { color: #9aa79f; font-size: 10px; font-weight: 500; }
 .auth-submit { width: 100%; margin-top: 6px; }
-.phone-input { display: grid; grid-template-columns: 143px 1fr; gap: 8px; }
-.phone-input select, .phone-input input { min-width: 0; }
+.password-field { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.password-field input { min-width: 0; }
+.password-toggle { width: auto; min-height: auto; padding: 0 8px; border: 0; color: var(--green); background: transparent; font-size: 11px; font-weight: 800; }
 .auth-config-note { display: grid; gap: 5px; margin-bottom: 16px; padding: 12px 13px; border: 1px solid #eedcb2; border-radius: 11px; color: #836b39; background: #fff8df; font-size: 11px; line-height: 1.55; }
 .auth-config-note strong { font-size: 12px; }
 .auth-config-note code { padding: 1px 4px; border-radius: 4px; color: #755e31; background: rgba(255,255,255,.7); font-size: 10px; }
-.otp-heading { display: flex; align-items: center; gap: 11px; }
-.back-button { width: auto; min-height: auto; padding: 0 5px; border: 0; color: var(--green); background: transparent; font-size: 20px; }
-.otp-heading strong, .otp-heading span { display: block; }
-.otp-heading strong { color: var(--ink); font-size: 16px; }
-.otp-heading span { margin-top: 4px; color: #98a69d; font-size: 10px; }
-.auth-resend-row { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-top: -2px; color: #9aa69e; font-size: 10px; }
-.auth-resend-row .text-button { color: var(--green); font-size: 11px; }
-.auth-resend-row .text-button:disabled { color: #b2bdb5; }
 .auth-feedback { min-height: 17px; margin: 15px 0 0; color: #5e8a61; font-size: 11px; line-height: 1.55; }
 .auth-feedback[data-tone="error"] { color: #b26050; }
 .auth-feedback[data-tone="success"] { color: #4b895d; }
@@ -350,7 +343,6 @@ body.auth-pending .app-shell, body.auth-required .app-shell { display: none; }
   .auth-story-note { display: none; }
   .auth-card { padding: 22px 18px; border-radius: 19px; }
   .auth-card-heading h2 { font-size: 24px; }
-  .phone-input { grid-template-columns: 125px 1fr; }
   .topbar-actions { gap: 9px; }
   .topbar-actions .connection-status { display: none; }
 }
