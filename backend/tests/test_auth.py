@@ -67,7 +67,7 @@ def test_supabase_auth_adapter_maps_signup_and_provider_errors() -> None:
         "publishable-key",
         client=httpx.Client(transport=httpx.MockTransport(handler)),
     )
-    result = client.sign_up("person@example.com", "password123", "小明")
+    result = client.sign_up("person@example.com", "password123")
 
     assert result.user.id == "u1"
     assert result.session is None
@@ -75,7 +75,6 @@ def test_supabase_auth_adapter_maps_signup_and_provider_errors() -> None:
     assert json.loads(requests[0].content) == {
         "email": "person@example.com",
         "password": "password123",
-        "options": {"data": {"display_name": "小明"}},
     }
 
     try:
@@ -97,7 +96,7 @@ def test_auth_routes_register_login_refresh_me_logout() -> None:
     try:
         register = client.post(
             "/api/v1/auth/register",
-            json={"email": " Person@Example.com ", "password": "password123", "display_name": "小明"},
+            json={"email": " Person@Example.com ", "password": "password123"},
         )
         login = client.post(
             "/api/v1/auth/login",
@@ -154,5 +153,25 @@ def test_auth_routes_require_supabase_configuration_and_invalid_tokens_are_rejec
     try:
         response = client.get("/api/v1/auth/me", headers={"Authorization": "Bearer bad-token"})
         assert response.status_code == 401
+    finally:
+        app.dependency_overrides.pop(get_auth_client, None)
+
+
+def test_registration_accepts_only_email_and_password() -> None:
+    fake = FakeAuthClient()
+    app.dependency_overrides[get_auth_client] = lambda: fake
+    client = TestClient(app)
+
+    try:
+        response = client.post(
+            "/api/v1/auth/register",
+            json={
+                "email": "person@example.com",
+                "password": "password123",
+                "captcha_token": "must-not-be-used",
+            },
+        )
+        assert response.status_code == 422
+        assert fake.calls == []
     finally:
         app.dependency_overrides.pop(get_auth_client, None)

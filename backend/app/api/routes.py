@@ -98,7 +98,7 @@ def auth_register(
 ) -> AuthResponse:
     client = _require_auth_client(auth_client)
     try:
-        result = client.sign_up(request.email, request.password, request.display_name)
+        result = client.sign_up(request.email, request.password)
         message = None if result.session else "注册成功，请先完成邮箱确认后再登录"
         return _auth_response(result, message)
     except AuthProviderError as exc:

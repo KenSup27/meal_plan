@@ -1,12 +1,13 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class RegisterRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     email: str = Field(min_length=3, max_length=320)
     password: str = Field(min_length=8, max_length=128)
-    display_name: str | None = Field(default=None, min_length=1, max_length=80)
 
     @field_validator("email")
     @classmethod
@@ -16,12 +17,6 @@ class RegisterRequest(BaseModel):
         if not separator or not local or "." not in domain or domain.startswith(".") or domain.endswith("."):
             raise ValueError("请输入有效的邮箱地址")
         return value
-
-    @field_validator("display_name")
-    @classmethod
-    def validate_display_name(cls, value: str | None) -> str | None:
-        return value.strip() if value is not None else None
-
 
 class LoginRequest(BaseModel):
     email: str = Field(min_length=3, max_length=320)
