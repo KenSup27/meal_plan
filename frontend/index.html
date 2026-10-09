@@ -20,31 +20,26 @@
             <h1>先照顾好自己，<em>再把饭带上。</em></h1>
             <p>登录后，你的营养基线、私房菜谱和每周采购清单都会只属于你。</p>
           </div>
-          <div class="auth-story-note"><span>✦</span><div><strong>从一条验证码开始</strong><small>不用记密码，邮箱或手机号都可以。</small></div></div>
+          <div class="auth-story-note"><span>✦</span><div><strong>从一个账号开始</strong><small>用邮箱和密码保存你的专属饮食计划。</small></div></div>
         </div>
         <div class="auth-card">
           <div class="auth-card-heading">
             <div><span class="eyebrow">WELCOME BACK</span><h2 id="auth-title">登录 / 注册</h2></div>
             <span class="auth-lock">⌁ 安全验证</span>
           </div>
-          <div class="auth-method-tabs" role="tablist" aria-label="登录方式">
-            <button class="auth-method active" data-auth-method="email" type="button" role="tab" aria-selected="true">邮箱验证码</button>
-            <button class="auth-method" data-auth-method="phone" type="button" role="tab" aria-selected="false">手机验证码</button>
+          <div class="auth-method-tabs" role="tablist" aria-label="账号操作">
+            <button class="auth-method active" data-auth-mode="login" type="button" role="tab" aria-selected="true">登录</button>
+            <button class="auth-method" data-auth-mode="signup" type="button" role="tab" aria-selected="false">注册</button>
           </div>
           <div id="auth-config-note" class="auth-config-note" hidden></div>
-          <form id="auth-request-form" class="auth-form">
-            <div id="email-field" class="auth-field"><label for="auth-email">邮箱地址</label><input id="auth-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required /><small>验证码会发送到你的邮箱</small></div>
-            <div id="phone-field" class="auth-field" hidden><label for="auth-phone">手机号码</label><div class="phone-input"><select id="auth-country" name="country_code" aria-label="国家或地区码"><option value="+86">中国大陆 +86</option><option value="+1">美国/加拿大 +1</option><option value="+65">新加坡 +65</option><option value="+81">日本 +81</option><option value="+852">中国香港 +852</option></select><input id="auth-phone" name="phone" type="tel" autocomplete="tel" placeholder="138 0000 0000" /></div><small>验证码会通过短信发送</small></div>
-            <button id="auth-send-button" class="primary-button auth-submit" type="submit">发送验证码 <span>→</span></button>
-          </form>
-          <form id="auth-verify-form" class="auth-form" hidden>
-            <div class="otp-heading"><button class="back-button" data-action="auth-back" type="button" aria-label="返回">←</button><div><strong>输入验证码</strong><span id="auth-destination"></span></div></div>
-            <label for="auth-token">6 位验证码<input id="auth-token" name="token" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="000000" required /></label>
-            <button id="auth-verify-button" class="primary-button auth-submit" type="submit">验证并进入 <span>→</span></button>
-            <div class="auth-resend-row"><span id="auth-countdown">60 秒后可重新发送</span><button id="auth-resend-button" class="text-button" type="button" disabled>重新发送</button></div>
+          <form id="auth-form" class="auth-form">
+            <div class="auth-field"><label for="auth-email">邮箱地址</label><input id="auth-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required /></div>
+            <div class="auth-field"><label for="auth-password">密码</label><div class="password-field"><input id="auth-password" name="password" type="password" autocomplete="current-password" minlength="8" placeholder="至少 8 位" required /><button id="toggle-password" class="password-toggle" data-action="toggle-password" type="button" aria-label="显示密码">显示</button></div><small>密码至少 8 位，建议包含字母和数字</small></div>
+            <div id="password-confirm-field" class="auth-field" hidden><label for="auth-password-confirm">确认密码</label><input id="auth-password-confirm" name="password_confirm" type="password" autocomplete="new-password" minlength="8" placeholder="再次输入密码" /></div>
+            <button id="auth-submit-button" class="primary-button auth-submit" type="submit">登录 <span>→</span></button>
           </form>
           <p id="auth-feedback" class="auth-feedback" role="status" aria-live="polite"></p>
-          <p class="auth-legal">继续即表示你同意我们仅使用该联系方式完成身份验证。不会使用密码，也不会发送营销消息。</p>
+          <p class="auth-legal">继续即表示你同意我们使用邮箱和密码保护你的营养基线、菜谱与周度计划。不会发送营销消息。</p>
         </div>
       </div>
     </section>
@@ -96,7 +91,7 @@
               <label>年龄<input name="age" type="number" min="14" max="100" value="30" required /></label>
               <label>身高 <span class="unit">cm</span><input name="height_cm" type="number" min="101" max="250" value="165" required /></label>
               <label>体重 <span class="unit">kg</span><input name="weight_kg" type="number" min="26" max="300" value="60" required /></label>
-              <label>活动系数<select name="activity_factor"><option value="1.2">久坐 · 1.2</option><option value="1.375">偶尔活动 · 1.375</option><option value="1.55">规律训练 · 1.55</option></select></label>
+              <label>活动水平<select name="activity_factor"><option value="1.2">久坐（每周锻炼 0–1 次）</option><option value="1.375">偶尔活动（每周锻炼 1–3 次）</option><option value="1.55">规律训练（每周锻炼 3–5 次）</option></select></label>
               <label>目标<select name="goal"><option value="cut">减脂</option><option value="maintain">维持</option><option value="bulk">增肌</option></select></label>
               <button class="primary-button full-span" type="submit">计算我的推荐值 <span>→</span></button>
             </form>
