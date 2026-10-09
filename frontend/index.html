@@ -7,16 +7,62 @@
     <title>一盘好饭 · 带饭营养规划</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
-  <body>
+  <body class="auth-pending">
+    <section id="auth-gate" class="auth-gate" aria-labelledby="auth-title" hidden>
+      <div class="auth-shell">
+        <div class="auth-story">
+          <button class="brand auth-brand" data-action="auth-brand" type="button">
+            <span class="brand-mark">一盘<span>好饭</span></span>
+            <span class="brand-caption">MEAL PREP PLANNER</span>
+          </button>
+          <div class="auth-story-copy">
+            <p class="eyebrow">YOUR WEEK, SERVED WITH INTENTION</p>
+            <h1>先照顾好自己，<em>再把饭带上。</em></h1>
+            <p>登录后，你的营养基线、私房菜谱和每周采购清单都会只属于你。</p>
+          </div>
+          <div class="auth-story-note"><span>✦</span><div><strong>从一条验证码开始</strong><small>不用记密码，邮箱或手机号都可以。</small></div></div>
+        </div>
+        <div class="auth-card">
+          <div class="auth-card-heading">
+            <div><span class="eyebrow">WELCOME BACK</span><h2 id="auth-title">登录 / 注册</h2></div>
+            <span class="auth-lock">⌁ 安全验证</span>
+          </div>
+          <div class="auth-method-tabs" role="tablist" aria-label="登录方式">
+            <button class="auth-method active" data-auth-method="email" type="button" role="tab" aria-selected="true">邮箱验证码</button>
+            <button class="auth-method" data-auth-method="phone" type="button" role="tab" aria-selected="false">手机验证码</button>
+          </div>
+          <div id="auth-config-note" class="auth-config-note" hidden></div>
+          <form id="auth-request-form" class="auth-form">
+            <div id="email-field" class="auth-field"><label for="auth-email">邮箱地址</label><input id="auth-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required /><small>验证码会发送到你的邮箱</small></div>
+            <div id="phone-field" class="auth-field" hidden><label for="auth-phone">手机号码</label><div class="phone-input"><select id="auth-country" name="country_code" aria-label="国家或地区码"><option value="+86">中国大陆 +86</option><option value="+1">美国/加拿大 +1</option><option value="+65">新加坡 +65</option><option value="+81">日本 +81</option><option value="+852">中国香港 +852</option></select><input id="auth-phone" name="phone" type="tel" autocomplete="tel" placeholder="138 0000 0000" /></div><small>验证码会通过短信发送</small></div>
+            <button id="auth-send-button" class="primary-button auth-submit" type="submit">发送验证码 <span>→</span></button>
+          </form>
+          <form id="auth-verify-form" class="auth-form" hidden>
+            <div class="otp-heading"><button class="back-button" data-action="auth-back" type="button" aria-label="返回">←</button><div><strong>输入验证码</strong><span id="auth-destination"></span></div></div>
+            <label for="auth-token">6 位验证码<input id="auth-token" name="token" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="000000" required /></label>
+            <button id="auth-verify-button" class="primary-button auth-submit" type="submit">验证并进入 <span>→</span></button>
+            <div class="auth-resend-row"><span id="auth-countdown">60 秒后可重新发送</span><button id="auth-resend-button" class="text-button" type="button" disabled>重新发送</button></div>
+          </form>
+          <p id="auth-feedback" class="auth-feedback" role="status" aria-live="polite"></p>
+          <p class="auth-legal">继续即表示你同意我们仅使用该联系方式完成身份验证。不会使用密码，也不会发送营销消息。</p>
+        </div>
+      </div>
+    </section>
     <div class="app-shell">
       <header class="topbar">
         <button class="brand" data-view="baseline" type="button">
           <span class="brand-mark">一盘<span>好饭</span></span>
           <span class="brand-caption">MEAL PREP PLANNER</span>
         </button>
-        <div class="connection-status" aria-live="polite">
-          <span id="health-dot" class="status-dot"></span>
-          <span id="health-text">连接检查中</span>
+        <div class="topbar-actions">
+          <div class="connection-status" aria-live="polite">
+            <span id="health-dot" class="status-dot"></span>
+            <span id="health-text">连接检查中</span>
+          </div>
+          <div id="account-menu" class="account-menu" hidden>
+            <span id="account-label" class="account-label"></span>
+            <button id="logout-button" class="logout-button" type="button">退出</button>
+          </div>
         </div>
       </header>
 
@@ -132,6 +178,8 @@
 
       <footer class="app-footer">一盘好饭 · 以生重规划，以一周为单位准备</footer>
     </div>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.1"></script>
+    <script src="/static/auth.js"></script>
     <script src="/static/app-core.js"></script>
     <script src="/static/app.js" defer></script>
   </body>
