@@ -1,8 +1,8 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 
-from backend.app.core.auth import get_current_user_id
+from backend.app.core.auth import get_auth_client, get_current_user_id
 from backend.app.repositories.memory import get_repository
 from backend.app.schemas.ingredients import (
     IngredientCategory,
@@ -23,6 +23,16 @@ from backend.app.schemas.meal_plans import (
     ShoppingListResponse,
 )
 from backend.app.schemas.profile import BaselineConfirmRequest, BaselineResponse
+from backend.app.schemas.auth import (
+    AuthResponse,
+    AuthSessionResponse,
+    AuthUserResponse,
+    LoginRequest,
+    RefreshRequest,
+    RegisterRequest,
+    StatusResponse,
+)
+from backend.app.services.auth import AuthProviderError, AuthResult, SupabaseAuthClient
 from backend.app.schemas.nutrition import (
     NutritionCalculateRequest,
     NutritionCalculateResponse,
@@ -33,9 +43,126 @@ from backend.app.services.nutrition import calculate_nutrition
 router = APIRouter(prefix="/api/v1")
 
 
+def _auth_response(result: AuthResult, message: str | None = None) -> AuthResponse:
+    session = result.session
+    return AuthResponse(
+        user=AuthUserResponse(
+            id=result.user.id,
+            email=result.user.email,
+            email_confirmed_at=result.user.email_confirmed_at,
+        ),
+        session=(
+            AuthSessionResponse(
+                access_token=session.access_token,
+                refresh_token=session.refresh_token,
+                token_type=session.token_type,
+                expires_in=session.expires_in,
+                expires_at=session.expires_at,
+            )
+            if session
+            else None
+        ),
+        message=message,
+    )
+
+
+def _raise_auth_error(exc: AuthProviderError) -> None:
+    if exc.status_code == 429:
+        status_code = 429
+    elif exc.status_code in (401, 403):
+        status_code = 401
+    elif exc.status_code == 409 or exc.code in {"user_already_exists", "email_exists"}:
+        status_code = 409
+    elif 400 <= exc.status_code < 500:
+        status_code = 400
+    else:
+        status_code = 502 if exc.status_code != 503 else 503
+    raise HTTPException(status_code=status_code, detail=exc.message) from exc
+
+
+def _require_auth_client(auth_client: SupabaseAuthClient | None) -> SupabaseAuthClient:
+    if auth_client is None:
+        raise HTTPException(status_code=503, detail="Supabase Auth 尚未配置")
+    return auth_client
+
+
 @router.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@router.post("/auth/register", response_model=AuthResponse, status_code=201)
+def auth_register(
+    request: RegisterRequest,
+    auth_client: Annotated[SupabaseAuthClient | None, Depends(get_auth_client)] = None,
+) -> AuthResponse:
+    client = _require_auth_client(auth_client)
+    try:
+        result = client.sign_up(request.email, request.password, request.display_name)
+        message = None if result.session else "注册成功，请先完成邮箱确认后再登录"
+        return _auth_response(result, message)
+    except AuthProviderError as exc:
+        _raise_auth_error(exc)
+
+
+@router.post("/auth/login", response_model=AuthResponse)
+def auth_login(
+    request: LoginRequest,
+    auth_client: Annotated[SupabaseAuthClient | None, Depends(get_auth_client)] = None,
+) -> AuthResponse:
+    client = _require_auth_client(auth_client)
+    try:
+        return _auth_response(client.sign_in(request.email, request.password))
+    except AuthProviderError as exc:
+        _raise_auth_error(exc)
+
+
+@router.post("/auth/refresh", response_model=AuthResponse)
+def auth_refresh(
+    request: RefreshRequest,
+    auth_client: Annotated[SupabaseAuthClient | None, Depends(get_auth_client)] = None,
+) -> AuthResponse:
+    client = _require_auth_client(auth_client)
+    try:
+        return _auth_response(client.refresh_session(request.refresh_token))
+    except AuthProviderError as exc:
+        _raise_auth_error(exc)
+
+
+@router.post("/auth/logout", response_model=StatusResponse)
+def auth_logout(
+    authorization: Annotated[str | None, Header()] = None,
+    auth_client: Annotated[SupabaseAuthClient | None, Depends(get_auth_client)] = None,
+) -> StatusResponse:
+    client = _require_auth_client(auth_client)
+    if not authorization:
+        raise HTTPException(status_code=401, detail="缺少 Authorization Bearer 凭证")
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        raise HTTPException(status_code=401, detail="Authorization 必须使用 Bearer 凭证")
+    try:
+        client.sign_out(token.strip())
+        return StatusResponse(status="ok")
+    except AuthProviderError as exc:
+        _raise_auth_error(exc)
+
+
+@router.get("/auth/me", response_model=AuthUserResponse)
+def auth_me(
+    authorization: Annotated[str | None, Header()] = None,
+    auth_client: Annotated[SupabaseAuthClient | None, Depends(get_auth_client)] = None,
+) -> AuthUserResponse:
+    client = _require_auth_client(auth_client)
+    if not authorization:
+        raise HTTPException(status_code=401, detail="缺少 Authorization Bearer 凭证")
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        raise HTTPException(status_code=401, detail="Authorization 必须使用 Bearer 凭证")
+    try:
+        user = client.get_user(token.strip())
+        return AuthUserResponse(id=user.id, email=user.email, email_confirmed_at=user.email_confirmed_at)
+    except AuthProviderError as exc:
+        _raise_auth_error(exc)
 
 
 @router.get("/ingredients", response_model=IngredientListResponse)
