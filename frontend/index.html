@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f5f7f2" />
+    <title>带饭营养规划</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="hero">
+        <p class="eyebrow">MEAL PREP MVP</p>
+        <h1>把本周带饭安排好。</h1>
+        <p class="muted">先定目标，再按生重采购和备餐。</p>
+      </header>
+
+      <section class="card" aria-labelledby="status-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">PROJECT STATUS</p>
+            <h2 id="status-title">脚手架已就绪</h2>
+          </div>
+          <span id="health-badge" class="badge">检查中</span>
+        </div>
+        <p id="health-text" class="muted">正在连接本地 API……</p>
+      </section>
+
+      <section class="card" aria-labelledby="nutrition-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">ONBOARDING</p>
+            <h2 id="nutrition-title">营养基线</h2>
+          </div>
+          <span class="badge secondary">API 骨架</span>
+        </div>
+
+        <form id="nutrition-form" class="form-grid">
+          <label>性别<select name="sex"><option value="female">女性</option><option value="male">男性</option></select></label>
+          <label>年龄<input name="age" type="number" min="14" max="100" value="30" required /></label>
+          <label>身高 cm<input name="height_cm" type="number" min="101" max="250" value="165" required /></label>
+          <label>体重 kg<input name="weight_kg" type="number" min="26" max="300" value="60" required /></label>
+          <label>活动系数<select name="activity_factor"><option value="1.2">久坐 · 1.2</option><option value="1.375">偶尔活动 · 1.375</option><option value="1.55">规律训练 · 1.55</option></select></label>
+          <label>目标<select name="goal"><option value="cut">减脂</option><option value="maintain">维持</option><option value="bulk">增肌</option></select></label>
+          <button type="submit">计算推荐值</button>
+        </form>
+        <div id="nutrition-result" class="result-grid" hidden></div>
+      </section>
+
+      <section class="roadmap card" aria-labelledby="roadmap-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">MVP ROADMAP</p>
+            <h2 id="roadmap-title">下一步模块</h2>
+          </div>
+        </div>
+        <div class="roadmap-list">
+          <div><span>01</span><strong>菜谱管理</strong><small>待接入数据库</small></div>
+          <div><span>02</span><strong>周度规划</strong><small>待确认表结构</small></div>
+          <div><span>03</span><strong>采购清单</strong><small>待实现合并逻辑</small></div>
+        </div>
+      </section>
+    </main>
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>
