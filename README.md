@@ -25,6 +25,7 @@ pytest
 
 ## 文档入口
 
+* [开发计划](PLAN.md)
 * [产品需求文档](meal_prep_nutrition_planner_prd.md)
 * [技术设计与 API 契约](docs/technical-design.md)
 * [数据库 Schema 与 RLS](supabase/schema.sql)
