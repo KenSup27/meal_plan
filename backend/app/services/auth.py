@@ -123,10 +123,8 @@ class SupabaseAuthClient:
             expires_at=raw.get("expires_at"),
         )
 
-    def sign_up(self, email: str, password: str, display_name: str | None = None) -> AuthResult:
+    def sign_up(self, email: str, password: str) -> AuthResult:
         payload: dict[str, Any] = {"email": email, "password": password}
-        if display_name:
-            payload["options"] = {"data": {"display_name": display_name}}
         response = self._request("POST", "/auth/v1/signup", payload=payload)
         return AuthResult(self._parse_user(response), self._parse_session(response))
 
