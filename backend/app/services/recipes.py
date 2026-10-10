@@ -1,7 +1,7 @@
 from decimal import Decimal, ROUND_HALF_UP
 
 from backend.app.domain import NutritionValues, RecipeIngredientRecord, RecipeRecord
-from backend.app.repositories.memory import MemoryRepository
+from backend.app.repositories.base import Repository
 from backend.app.schemas.recipes import (
     NutritionResponse,
     RecipeCreate,
@@ -25,7 +25,7 @@ def nutrition_response(nutrition: NutritionValues) -> NutritionResponse:
 
 
 def resolve_ingredients(
-    repository: MemoryRepository,
+    repository: Repository,
     inputs,
 ) -> list[RecipeIngredientRecord]:
     seen: set[int] = set()
@@ -47,22 +47,22 @@ def resolve_ingredients(
 
 
 def calculate_recipe_nutrition(
-    repository: MemoryRepository,
+    repository: Repository,
     recipe: RecipeRecord,
 ) -> NutritionValues:
     total = NutritionValues()
     for item in recipe.ingredients:
-        ingredient = repository.get_ingredient(item.ingredient_id)
+        ingredient = repository.get_ingredient(item.ingredient_id, include_inactive=True)
         if ingredient is None:
             raise ValueError(f"菜谱引用的食材不可用: {item.ingredient_id}")
         total += ingredient.nutrition.scale(item.raw_weight_g / Decimal("100"))
     return total
 
 
-def to_recipe_response(repository: MemoryRepository, recipe: RecipeRecord) -> RecipeResponse:
+def to_recipe_response(repository: Repository, recipe: RecipeRecord) -> RecipeResponse:
     ingredient_responses: list[RecipeIngredientResponse] = []
     for item in recipe.ingredients:
-        ingredient = repository.get_ingredient(item.ingredient_id)
+        ingredient = repository.get_ingredient(item.ingredient_id, include_inactive=True)
         if ingredient is None:
             raise ValueError(f"菜谱引用的食材不可用: {item.ingredient_id}")
         contribution = ingredient.nutrition.scale(item.raw_weight_g / Decimal("100"))
@@ -85,7 +85,7 @@ def to_recipe_response(repository: MemoryRepository, recipe: RecipeRecord) -> Re
     )
 
 
-def create_recipe(repository: MemoryRepository, user_id: str, request: RecipeCreate) -> RecipeResponse:
+def create_recipe(repository: Repository, user_id: str, request: RecipeCreate) -> RecipeResponse:
     recipe = repository.create_recipe(
         user_id=user_id,
         name=request.name,
@@ -95,22 +95,22 @@ def create_recipe(repository: MemoryRepository, user_id: str, request: RecipeCre
     return to_recipe_response(repository, recipe)
 
 
-def list_recipes(repository: MemoryRepository, user_id: str) -> list[RecipeResponse]:
+def list_recipes(repository: Repository, user_id: str) -> list[RecipeResponse]:
     return [
         to_recipe_response(repository, recipe)
         for recipe in repository.list_recipes(user_id)
     ]
 
 
-def get_owned_recipe(repository: MemoryRepository, user_id: str, recipe_id: str) -> RecipeRecord:
+def get_owned_recipe(repository: Repository, user_id: str, recipe_id: str, allow_archived: bool = False) -> RecipeRecord:
     recipe = repository.get_recipe(recipe_id)
-    if recipe is None or recipe.user_id != user_id or recipe.archived_at is not None:
+    if recipe is None or recipe.user_id != user_id or (recipe.archived_at is not None and not allow_archived):
         raise LookupError("菜谱不存在")
     return recipe
 
 
 def update_recipe(
-    repository: MemoryRepository,
+    repository: Repository,
     user_id: str,
     recipe_id: str,
     request: RecipeUpdate,
@@ -123,9 +123,9 @@ def update_recipe(
         if request.ingredients is not None
         else recipe.ingredients
     )
-    repository.update_recipe(recipe, name, description, ingredients)
+    recipe = repository.update_recipe(recipe, name, description, ingredients)
     return to_recipe_response(repository, recipe)
 
 
-def archive_recipe(repository: MemoryRepository, user_id: str, recipe_id: str) -> None:
+def archive_recipe(repository: Repository, user_id: str, recipe_id: str) -> None:
     repository.archive_recipe(get_owned_recipe(repository, user_id, recipe_id))

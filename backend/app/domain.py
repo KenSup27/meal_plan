@@ -90,3 +90,4 @@ class MealPlanRecord:
     target: NutritionValues
     items: list[MealPlanItemRecord] = field(default_factory=list)
     status: str = "draft"
+    revision: str | None = None

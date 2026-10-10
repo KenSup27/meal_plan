@@ -87,7 +87,7 @@
     return errors;
   }
 
-  function calculateRecipeNutrition(ingredients, catalog) {
+  function calculateRecipeNutritionRaw(ingredients, catalog) {
     const byId = new Map((catalog || []).map((ingredient) => [String(ingredient.id), ingredient]));
     const totals = { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 };
     (ingredients || []).forEach((item) => {
@@ -100,12 +100,17 @@
       totals.carbs_g += Number(ingredient.carbs_per_100g) * ratio;
       totals.fat_g += Number(ingredient.fat_per_100g) * ratio;
     });
-    return {
-      kcal: round1(totals.kcal),
-      protein_g: round1(totals.protein_g),
-      carbs_g: round1(totals.carbs_g),
-      fat_g: round1(totals.fat_g),
-    };
+    return totals;
+  }
+
+  function calculateRecipeNutrition(ingredients, catalog) {
+    const totals = calculateRecipeNutritionRaw(ingredients, catalog);
+    return Object.fromEntries(Object.entries(totals).map(([field, value]) => [field, round1(value)]));
+  }
+
+  function plateCount(plan) {
+    return round1((plan?.items || []).filter(item => item.input_mode === "recipe")
+      .reduce((sum, item) => sum + Number(item.quantity || 0), 0));
   }
 
   function buildRecipe(values, id) {
@@ -166,16 +171,16 @@
 
   function recipeNutritionById(recipeId, recipes, catalog) {
     const recipe = (recipes || []).find((item) => String(item.id) === String(recipeId));
-    return recipe ? calculateRecipeNutrition(recipe.ingredients, catalog) : null;
+    return recipe ? calculateRecipeNutritionRaw(recipe.ingredients, catalog) : null;
   }
 
   function aggregatePlanNutrition(plan, recipes, catalog) {
     const days = {};
     const total = { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0 };
     (plan && plan.items || []).forEach((item) => {
-      const nutrition = recipeNutritionById(item.recipe_id, recipes, catalog);
+      const nutrition = item.input_mode === "manual" ? item.manual_nutrition : recipeNutritionById(item.recipe_id, recipes, catalog);
       if (!nutrition) return;
-      const quantity = Number(item.quantity) || 0;
+      const quantity = item.input_mode === "manual" ? 1 : Number(item.quantity) || 0;
       const day = days[item.planned_date] || {
         kcal: 0,
         protein_g: 0,
@@ -240,6 +245,7 @@
     validateNutritionTargets,
     applyNutritionTargets,
     round1,
+    plateCount,
     validateRecipeInput,
     calculateRecipeNutrition,
     buildRecipe,

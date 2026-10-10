@@ -111,9 +111,11 @@ class SupabaseAuthClient:
     @staticmethod
     def _parse_session(payload: dict[str, Any]) -> AuthSession | None:
         raw = payload.get("session")
+        if raw is None and ("access_token" in payload or "refresh_token" in payload):
+            raw = payload
         if not raw:
             return None
-        if not raw.get("access_token") or not raw.get("refresh_token"):
+        if not isinstance(raw, dict) or not raw.get("access_token") or not raw.get("refresh_token"):
             raise AuthProviderError(502, "认证服务返回的会话信息不完整")
         return AuthSession(
             access_token=raw["access_token"],

@@ -25,7 +25,9 @@ def run_database_sql():
         # Reuse the real deployment SQL inside the enclosing test transaction.
         auth_module = (SQL_DIR.parents[1] / "auth.sql").read_text()
         auth_module = auth_module.split("begin;\n", 1)[1].rsplit("commit;", 1)[0]
-        sql += case_sql.replace("/* APPLY_AUTH_MODULE */", auth_module)
+        business_module = (SQL_DIR.parents[1] / "business.sql").read_text()
+        integrity_module = (SQL_DIR.parents[1] / "integrity.sql").read_text()
+        sql += case_sql.replace("/* APPLY_AUTH_MODULE */", auth_module).replace("/* APPLY_BUSINESS_MODULE */", business_module).replace("/* APPLY_INTEGRITY_MODULE */", integrity_module)
         sql += "\nset constraints all immediate;\nrollback;\n"
         result = subprocess.run(
             [psql, "-X", "--no-password", "-v", "ON_ERROR_STOP=1", "-d", database_url],

@@ -3,7 +3,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 
 from backend.app.core.auth import get_auth_client, get_current_user_id
-from backend.app.repositories.memory import get_repository
+from backend.app.repositories.dependencies import get_business_repository
+from backend.app.repositories.base import Repository
 from backend.app.schemas.ingredients import (
     IngredientCategory,
     IngredientListResponse,
@@ -41,6 +42,7 @@ from backend.app.services.nutrition import calculate_nutrition
 
 
 router = APIRouter(prefix="/api/v1")
+RepositoryDependency = Annotated[Repository, Depends(get_business_repository)]
 
 
 def _auth_response(result: AuthResult, message: str | None = None) -> AuthResponse:
@@ -168,12 +170,13 @@ def auth_me(
 @router.get("/ingredients", response_model=IngredientListResponse)
 def ingredients(
     _user_id: Annotated[str, Depends(get_current_user_id)],
+    repository: RepositoryDependency,
     query: Annotated[str | None, Query(alias="q", min_length=1, max_length=80)] = None,
     category: IngredientCategory | None = None,
 ) -> IngredientListResponse:
     from backend.app.services.ingredients import list_ingredients
 
-    items = list_ingredients(get_repository(), query=query, category=category)
+    items = list_ingredients(repository, query=query, category=category)
     return IngredientListResponse(items=items, total=len(items))
 
 
@@ -181,20 +184,21 @@ def ingredients(
 def recipe_create(
     request: RecipeCreate,
     user_id: Annotated[str, Depends(get_current_user_id)],
+    repository: RepositoryDependency,
 ) -> RecipeResponse:
     from backend.app.services.recipes import create_recipe
 
     try:
-        return create_recipe(get_repository(), user_id, request)
+        return create_recipe(repository, user_id, request)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.get("/recipes", response_model=RecipeListResponse)
-def recipe_list(user_id: Annotated[str, Depends(get_current_user_id)]) -> RecipeListResponse:
+def recipe_list(user_id: Annotated[str, Depends(get_current_user_id)], repository: RepositoryDependency) -> RecipeListResponse:
     from backend.app.services.recipes import list_recipes
 
-    items = list_recipes(get_repository(), user_id)
+    items = list_recipes(repository, user_id)
     return RecipeListResponse(items=items, total=len(items))
 
 
@@ -202,11 +206,12 @@ def recipe_list(user_id: Annotated[str, Depends(get_current_user_id)]) -> Recipe
 def recipe_get(
     recipe_id: str,
     user_id: Annotated[str, Depends(get_current_user_id)],
+    repository: RepositoryDependency,
 ) -> RecipeResponse:
     from backend.app.services.recipes import get_owned_recipe, to_recipe_response
 
     try:
-        return to_recipe_response(get_repository(), get_owned_recipe(get_repository(), user_id, recipe_id))
+        return to_recipe_response(repository, get_owned_recipe(repository, user_id, recipe_id, allow_archived=True))
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -218,11 +223,12 @@ def recipe_update(
     recipe_id: str,
     request: RecipeUpdate,
     user_id: Annotated[str, Depends(get_current_user_id)],
+    repository: RepositoryDependency,
 ) -> RecipeResponse:
     from backend.app.services.recipes import update_recipe
 
     try:
-        return update_recipe(get_repository(), user_id, recipe_id, request)
+        return update_recipe(repository, user_id, recipe_id, request)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -233,11 +239,12 @@ def recipe_update(
 def recipe_archive(
     recipe_id: str,
     user_id: Annotated[str, Depends(get_current_user_id)],
+    repository: RepositoryDependency,
 ) -> None:
     from backend.app.services.recipes import archive_recipe
 
     try:
-        archive_recipe(get_repository(), user_id, recipe_id)
+        archive_recipe(repository, user_id, recipe_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -246,11 +253,12 @@ def recipe_archive(
 def meal_plan_create(
     request: MealPlanCreate,
     user_id: Annotated[str, Depends(get_current_user_id)],
+    repository: RepositoryDependency,
 ) -> MealPlanResponse:
     from backend.app.services.meal_plans import create_plan
 
     try:
-        return create_plan(get_repository(), user_id, request)
+        return create_plan(repository, user_id, request)
     except FileExistsError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
@@ -261,6 +269,7 @@ def meal_plan_create(
 def meal_plan_get(
     week_start: str,
     user_id: Annotated[str, Depends(get_current_user_id)],
+    repository: RepositoryDependency,
 ) -> MealPlanResponse:
     from datetime import date
 
@@ -268,7 +277,7 @@ def meal_plan_get(
 
     try:
         parsed_week_start = date.fromisoformat(week_start)
-        return to_plan_response(get_owned_plan(get_repository(), user_id, parsed_week_start))
+        return to_plan_response(get_owned_plan(repository, user_id, parsed_week_start))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail="week_start 必须是 YYYY-MM-DD") from exc
     except LookupError as exc:
@@ -280,13 +289,14 @@ def meal_plan_item_add(
     week_start: str,
     request: MealPlanItemInput,
     user_id: Annotated[str, Depends(get_current_user_id)],
+    repository: RepositoryDependency,
 ) -> MealPlanResponse:
     from datetime import date
 
     from backend.app.services.meal_plans import add_item
 
     try:
-        return add_item(get_repository(), user_id, date.fromisoformat(week_start), request)
+        return add_item(repository, user_id, date.fromisoformat(week_start), request)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except LookupError as exc:
@@ -298,6 +308,7 @@ def meal_plan_items_replace(
     week_start: str,
     request: MealPlanItemsRequest,
     user_id: Annotated[str, Depends(get_current_user_id)],
+    repository: RepositoryDependency,
 ) -> MealPlanResponse:
     from datetime import date
 
@@ -305,7 +316,7 @@ def meal_plan_items_replace(
 
     try:
         return replace_items(
-            get_repository(), user_id, date.fromisoformat(week_start), request.items
+            repository, user_id, date.fromisoformat(week_start), request.items, request.expected_revision
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -317,13 +328,14 @@ def meal_plan_items_replace(
 def meal_plan_nutrition(
     week_start: str,
     user_id: Annotated[str, Depends(get_current_user_id)],
+    repository: RepositoryDependency,
 ) -> MealPlanNutritionResponse:
     from datetime import date
 
     from backend.app.services.derived import summarize_nutrition
 
     try:
-        return summarize_nutrition(get_repository(), user_id, date.fromisoformat(week_start))
+        return summarize_nutrition(repository, user_id, date.fromisoformat(week_start))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail="week_start 必须是 YYYY-MM-DD") from exc
     except LookupError as exc:
@@ -336,13 +348,14 @@ def meal_plan_nutrition(
 def meal_plan_shopping_list(
     week_start: str,
     user_id: Annotated[str, Depends(get_current_user_id)],
+    repository: RepositoryDependency,
 ) -> ShoppingListResponse:
     from datetime import date
 
     from backend.app.services.derived import shopping_list
 
     try:
-        return shopping_list(get_repository(), user_id, date.fromisoformat(week_start))
+        return shopping_list(repository, user_id, date.fromisoformat(week_start))
     except ValueError as exc:
         raise HTTPException(status_code=422, detail="week_start 必须是 YYYY-MM-DD") from exc
     except LookupError as exc:
@@ -355,6 +368,7 @@ def meal_plan_shopping_list(
 def nutrition_calculate(
     request: NutritionCalculateRequest,
     _user_id: Annotated[str, Depends(get_current_user_id)],
+    repository: RepositoryDependency,
 ) -> NutritionCalculateResponse:
     try:
         return calculate_nutrition(request)
@@ -366,11 +380,12 @@ def nutrition_calculate(
 def profile_baseline_confirm(
     request: BaselineConfirmRequest,
     user_id: Annotated[str, Depends(get_current_user_id)],
+    repository: RepositoryDependency,
 ) -> BaselineResponse:
     from backend.app.services.profile import confirm_baseline
 
     try:
-        return confirm_baseline(get_repository(), user_id, request)
+        return confirm_baseline(repository, user_id, request)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -378,10 +393,17 @@ def profile_baseline_confirm(
 @router.get("/profile/baseline", response_model=BaselineResponse)
 def profile_baseline_get(
     user_id: Annotated[str, Depends(get_current_user_id)],
+    repository: RepositoryDependency,
 ) -> BaselineResponse:
     from backend.app.services.profile import get_baseline
 
     try:
-        return get_baseline(get_repository(), user_id)
+        return get_baseline(repository, user_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/ready")
+def readiness(repository: RepositoryDependency) -> dict[str, str]:
+    repository.list_ingredients()
+    return {"status": "ok", "storage": "supabase"}

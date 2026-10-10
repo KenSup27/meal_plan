@@ -88,12 +88,15 @@
 
   function showAuthenticated(session) {
     state.session = session;
+    passwordInput.value = "";
+    passwordConfirmInput.value = "";
     body.classList.remove("auth-pending", "auth-required");
     authGate.hidden = true;
     appShell.hidden = false;
     accountMenu.hidden = false;
     const user = session.user || {};
     accountLabel.textContent = user.email || "已登录";
+    window.dispatchEvent(new CustomEvent("mealprep:authchange"));
   }
 
   function showUnauthenticated() {
@@ -103,6 +106,7 @@
     authGate.hidden = false;
     appShell.hidden = true;
     accountMenu.hidden = true;
+    window.dispatchEvent(new CustomEvent("mealprep:authchange"));
     if (!client) showConfigurationState();
   }
 

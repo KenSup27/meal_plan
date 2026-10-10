@@ -1,15 +1,15 @@
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 from backend.app.domain import ProfileRecord
-from backend.app.repositories.memory import MemoryRepository
+from backend.app.repositories.base import Repository
 from backend.app.schemas.nutrition import NutritionCalculateRequest
 from backend.app.schemas.profile import BaselineConfirmRequest, BaselineResponse
 from backend.app.services.nutrition import calculate_nutrition
 
 
 def confirm_baseline(
-    repository: MemoryRepository,
+    repository: Repository,
     user_id: str,
     request: BaselineConfirmRequest,
 ) -> BaselineResponse:
@@ -42,17 +42,17 @@ def confirm_baseline(
             weight_kg=request.weight_kg,
             activity_factor=request.activity_factor,
             goal=request.goal,
-            target_kcal=target_kcal,
-            protein_g=protein_g,
-            carbs_g=carbs_g,
-            fat_g=fat_g,
+            target_kcal=target_kcal.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP),
+            protein_g=protein_g.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP),
+            carbs_g=carbs_g.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP),
+            fat_g=fat_g.quantize(Decimal("0.1"), rounding=ROUND_HALF_UP),
             baseline_confirmed_at=datetime.now(timezone.utc),
         )
     )
     return to_baseline_response(repository, profile)
 
 
-def to_baseline_response(repository: MemoryRepository, profile: ProfileRecord) -> BaselineResponse:
+def to_baseline_response(repository: Repository, profile: ProfileRecord) -> BaselineResponse:
     calculation = calculate_nutrition(
         NutritionCalculateRequest(
             sex=profile.sex,
@@ -80,7 +80,7 @@ def to_baseline_response(repository: MemoryRepository, profile: ProfileRecord) -
     )
 
 
-def get_baseline(repository: MemoryRepository, user_id: str) -> BaselineResponse:
+def get_baseline(repository: Repository, user_id: str) -> BaselineResponse:
     profile = repository.get_profile(user_id)
     if profile is None or profile.baseline_confirmed_at is None:
         raise LookupError("营养基线尚未确认")

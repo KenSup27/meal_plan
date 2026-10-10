@@ -1,3 +1,4 @@
+/* APPLY_INTEGRITY_MODULE */
 insert into auth.users(id, email)
 select email_user, email_user::text || '@example.invalid' from auth_test_ids;
 create temporary table business_test_ids (plan_id uuid);

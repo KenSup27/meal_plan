@@ -75,9 +75,9 @@ class MemoryRepository:
             and (not category or ingredient.category == category)
         ]
 
-    def get_ingredient(self, ingredient_id: int) -> IngredientRecord | None:
+    def get_ingredient(self, ingredient_id: int, include_inactive: bool = False) -> IngredientRecord | None:
         ingredient = self.ingredients.get(ingredient_id)
-        return ingredient if ingredient and ingredient.is_active else None
+        return ingredient if ingredient and (ingredient.is_active or include_inactive) else None
 
     def create_recipe(
         self,
@@ -125,6 +125,7 @@ class MemoryRepository:
         return self.profiles.get(user_id)
 
     def create_meal_plan(self, plan: MealPlanRecord) -> MealPlanRecord:
+        plan.revision = str(uuid4())
         self.meal_plans[plan.id] = plan
         return plan
 
@@ -140,6 +141,20 @@ class MemoryRepository:
 
     def get_meal_plan_by_id(self, plan_id: str) -> MealPlanRecord | None:
         return self.meal_plans.get(plan_id)
+
+
+    def add_plan_item(self, plan, item):
+        plan.items.append(item)
+        plan.revision = str(uuid4())
+        return plan
+
+    def replace_plan_items(self, plan, items, expected_revision=None):
+        if expected_revision != plan.revision:
+            from backend.app.repositories.base import RepositoryError
+            raise RepositoryError(409, "计划已被修改，请重新加载后再保存")
+        plan.items = items
+        plan.revision = str(uuid4())
+        return plan
 
 
 repository = MemoryRepository()

@@ -1,140 +1,76 @@
 # Meal Prep & Nutrition Planner 技术设计
 
-## 1. MVP 架构
+## 当前架构
 
-```text
-移动端静态页面
-        │
-        └── FastAPI 单体应用
-              ├── API：营养计算、菜谱、周计划、采购清单
-              ├── 静态资源托管
-              └── 未来接入 Supabase PostgreSQL
-```
+移动端静态页面由 FastAPI 托管。Supabase SDK 负责邮箱密码认证及会话刷新；
+页面业务请求携带当前 JWT，FastAPI 验证用户后建立请求范围的 Supabase Data API 仓储。
+数据库以 authenticated 角色执行 RLS。普通业务请求不使用 service_role。
 
-当前脚手架采用单体结构，以减少 MVP 的部署和认证复杂度。`frontend/` 暂时使用无构建依赖的静态页面，后续如果交互复杂度上升，再迁移到 Vue 3 或 React。`supabase/` 保留为后续持久化方案，数据库表结构尚未最终定稿。
+六张业务表及约束见 ADR 0002；邮箱密码范围见 ADR 0004；持久化、隔离与数值口径见
+[ADR 0005](adr/0005-business-persistence-and-isolation.md)。内存仓储仅通过测试依赖替换启用。
 
-## 2. 页面与路由
+## 页面与状态
 
-| 路由 | 页面 | MVP 能力 |
-| --- | --- | --- |
-| `/onboarding` | 营养基线 | 输入身体数据、查看 BMR/TDEE、修改并确认目标 |
-| `/recipes` | 我的菜谱 | 查看、创建、编辑、删除菜谱 |
-| `/recipes/new` | 新建菜谱 | 搜索食材、填写生重、实时汇总营养 |
-| `/planner` | 周度规划 | 选择周次、日期、菜谱和份数 |
-| `/shopping-list` | 采购清单 | 按分类展示合并后的生重，可勾选已购买 |
+单页应用在 `/` 提供营养基线、菜谱、周计划、采购清单四个视图。
+前端已保存数据来自 API，草稿和采购勾选只保留在当前页面内存。
+旧 `meal-prep-planner-demo-v1` 全局缓存不读、不写、不自动迁移到登录账号。
 
-移动端底部导航固定显示“规划、菜谱、采购、我的”。表单数字输入必须限制为非负值，并在失焦时进行单位和范围校验。
+认证用户发生变化时清空所有业务状态、表单和 DOM，取消旧请求；账号代次阻止旧异步结果回填。
+同账号 token 刷新保留草稿。切周使用请求序号避免晚到响应覆盖当前周。
+初始读取失败显示重试；保存失败保留草稿并显示错误，不宣称成功或降级本地保存。
 
-## 3. 数据与计算规则
+## 数据与计算
 
-### 3.1 营养基线
+身体输入使用 Mifflin–St Jeor 计算 BMR/TDEE，活动系数为 1.2、1.375、1.55。
+减脂目标为 TDEE−400，维持为 TDEE，增肌为 TDEE+300；推荐蛋白质为体重×1.8。
+脂肪默认占目标热量 25%，其余热量分配碳水；碳水不能为负。
+用户确认的四项目标按一位小数量化存入 Profile；计划建立时复制目标快照。
 
-```text
-male_bmr   = 10 * weight_kg + 6.25 * height_cm - 5 * age + 5
-female_bmr = 10 * weight_kg + 6.25 * height_cm - 5 * age - 161
-tdee       = bmr * activity_factor
+菜谱是一盘菜。营养为 `Σ(每100g生重营养 × 单盘生重 / 100)`；
+餐项乘 quantity 后，从原始明细分别累计餐项、日、周，最后各自舍入一位小数。
+后端使用 Decimal/ROUND_HALF_UP，数据库使用 numeric；禁止累加已舍入的单盘或日汇总。
+盘数为菜谱餐项 quantity 总和。人工餐影响营养，不计盘数和采购。
+采购按食材 ID 合并 `Σ(单盘生重 × quantity)`，返回总生重。
 
-cut  calories = tdee - 400
-maintain     = tdee
-bulk calories = tdee + 300
+菜谱归档后不能新排餐，但既有计划仍可读取及计算。停用食材也可用于历史计算。
+已归档的原有餐项必须完整保持不变，才能在整体替换中保留；修改或新增引用被拒绝。
 
-protein_g = weight_kg * 1.8
-fat_g     = calories * 0.25 / 9
-carb_g    = (calories - protein_g * 4 - fat_g * 9) / 4
-```
+## API 契约
 
-如果计算出的碳水小于 0，接口返回可识别的业务错误，要求用户调整目标或基础数据，不允许静默返回负数。用户确认后，`profiles` 中的目标字段成为后续仪表盘的唯一基线。
+前缀 `/api/v1`。除 health、注册、登录和刷新外，接口均需要用户 Bearer token；
+`/runtime-config.js` 只输出公开 URL/key 并禁止缓存，供页面先于认证初始化加载。
+完整字段契约以 `/docs` 中的 OpenAPI 为准。
 
-### 3.2 菜谱营养
+| 方法与路径 | 行为 |
+| --- | --- |
+| POST `/auth/register`、`/auth/login`、`/auth/refresh` | 返回 user 及规范 session；兼容原始 REST 顶层 token |
+| POST `/auth/logout`、GET `/auth/me` | 退出会话、读取已验证用户 |
+| GET `/health`、`/ready` | 进程探针；登录后的实际数据库可读探针 |
+| POST `/nutrition/calculate` | 计算推荐，不保存基线 |
+| PUT/GET `/profile/baseline` | 确认保存、恢复当前用户基线 |
+| GET `/ingredients` | 真实 bigint ID 食材目录，选择器只提供 active 食材 |
+| POST/GET `/recipes` | 创建/列出当前用户的未归档菜谱 |
+| GET/PATCH/DELETE `/recipes/{id}` | 读取、整体编辑、归档；读取支持历史归档菜谱 |
+| POST `/meal-plans` | 建立周一开始的计划及目标快照；重复周返回 409 |
+| GET `/meal-plans/{week_start}` | 读取计划及 revision；不存在返回 404 |
+| POST `/meal-plans/{week_start}/items` | 原子追加餐项 |
+| PUT `/meal-plans/{week_start}/items` | 原子整体替换，包含 items 和读取时的 expected_revision |
+| GET `/meal-plans/{week_start}/nutrition` | 七日及全周汇总、餐次完整性 |
+| GET `/meal-plans/{week_start}/shopping-list` | 当前计划的分类采购生重 |
 
-```text
-recipe_nutrient = Σ(ingredient_nutrient_per_100g * raw_weight_g / 100)
-```
+整体替换缺少版本号或版本已变化返回 409；前端重新读取后才能再次保存。
+餐项替换保留已有 UUID，人工营养响应的 manual_nutrition 映射为提交的 manual_* 字段。
+菜谱与食材明细通过 save_recipe 在一个事务内保存；餐项通过 save_plan_items 锁定父计划并写入。
+无效输入整笔回滚，不留下空父记录或部分餐项。
 
-`recipes` 中的汇总字段用于列表快速展示；保存或修改菜谱时由前端计算预览，并由后端/数据库校验后写入。正式版本可增加数据库触发器或专用 RPC，MVP 先在写入服务中统一计算。
+唯一冲突返回 409，输入约束返回 422，未登录/失效凭据返回 401，不存在/其他用户记录返回 404，
+缺配置/数据库不可用返回 503；不把 SQL 或凭据详情暴露给浏览器。
 
-### 3.3 采购清单
+## 初始化、升级与验收
 
-```text
-shopping_item[ingredient_id] =
-  Σ(recipe_ingredient.raw_weight_g * plan_item.servings)
-```
+空项目按 schema.sql → seed.sql → business.sql 初始化。已有库使用显式迁移，
+不要以重跑 schema.sql 升级。integrity.sql 同步旧部署缺失的既有完整性规则。
+命名迁移、启动及完整验收命令见根 README 和 tests/e2e/README.md。
 
-采购接口按食材 ID 合并，返回食材名称、分类和总生重。分类排序固定为：肉禽、水产、蛋奶、蔬菜、水果、碳水、调料、其他。
-
-## 4. FastAPI API 契约
-
-所有接口前缀为 `/api/v1`，除健康检查外都需要 `Authorization: Bearer <supabase_access_token>`。
-
-### `POST /nutrition/calculate`
-
-请求：
-
-```json
-{
-  "sex": "female",
-  "age": 30,
-  "height_cm": 165,
-  "weight_kg": 60,
-  "activity_factor": 1.375,
-  "goal": "cut"
-}
-```
-
-响应：
-
-```json
-{
-  "bmr_kcal": 1320.0,
-  "tdee_kcal": 1815.0,
-  "target_kcal": 1415.0,
-  "protein_g": 108.0,
-  "carbs_g": 154.2,
-  "fat_g": 39.3
-}
-```
-
-### `POST /shopping-lists/preview`
-
-请求：
-
-```json
-{
-  "meal_plan_id": "00000000-0000-0000-0000-000000000000"
-}
-```
-
-响应：
-
-```json
-{
-  "week_start": "2026-10-12",
-  "items": [
-    {
-      "ingredient_id": 1,
-      "ingredient_name": "鸡胸肉",
-      "category": "肉禽",
-      "total_raw_weight_g": 1200.0
-    }
-  ]
-}
-```
-
-接口只读取当前用户自己的计划。计划不存在、计划不属于当前用户或计划中包含已删除菜谱时，分别返回 `404` 或 `409`，不返回部分结果。
-
-### `GET /health`
-
-返回 `{ "status": "ok" }`，用于部署探针，不需要登录。
-
-## 5. 前端状态约定
-
-Pinia 建议拆分为 `authStore`、`profileStore`、`recipeStore`、`plannerStore`。服务端数据写入成功后再更新本地缓存；计算中的表单预览可以使用本地状态，但不能替代保存结果。所有异步操作都需要包含 loading、空状态和错误状态。
-
-## 6. 验收标准
-
-* 新用户可完成基线计算，并能手动修改推荐值后保存。
-* 菜谱可添加至少一种食材和生重，营养汇总与公式一致。
-* 周计划支持至少 5 个工作日和同一菜谱多次安排。
-* 采购清单能合并不同菜谱中的同一种食材，且总克数正确。
-* 用户 A 无法读取或修改用户 B 的 profile、recipe、meal plan。
-* 页面在 375px 宽度下可以完成周计划和采购清单操作。
+验收覆盖真实浏览器→FastAPI→Supabase 写入、账号隔离、重启/独立 origin 恢复、
+采购与营养精度、失败草稿保留及 375px 布局。实际跨设备验证需另行执行。
