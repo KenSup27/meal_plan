@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createClient, createSessionScope } = require('../api.js');
+const { ApiError, createClient, createSessionScope, networkErrorMessage } = require('../api.js');
 const { aggregatePlanNutrition, plateCount } = require('../app-core.js');
 
 test('account switches invalidate late results and abort prior requests', async () => {
@@ -26,6 +26,34 @@ test('business API sends current token and accepts empty DELETE responses', asyn
 test('failed server writes reject and never become local success', async () => {
   const request = createClient(() => 'a', async () => ({ ok: false, status: 503, json: async () => ({ detail: 'unavailable' }) }));
   await assert.rejects(request('POST', '/recipes', {}), { status: 503, message: 'unavailable' });
+});
+
+test('fetch connection failures distinguish reads from uncertain writes and never retry', async () => {
+  let calls = 0;
+  const request = createClient(() => 'a', async () => { calls++; throw new TypeError('arbitrary browser transport text'); });
+  for (const method of ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']) {
+    await assert.rejects(request(method, '/recipes', method === 'GET' ? undefined : {}), error => {
+      assert.ok(error instanceof ApiError);
+      assert.equal(error.kind, 'network');
+      assert.equal(error.status, 0);
+      assert.equal(error.message, networkErrorMessage(method));
+      assert.equal(error.message.includes('结果尚未确认'), method !== 'GET');
+      return true;
+    });
+  }
+  assert.equal(calls, 5);
+});
+
+test('account-switch AbortError stays silent during fetch and response body reading', async () => {
+  const cancelled = new DOMException('cancelled', 'AbortError');
+  for (const fetcher of [async () => { throw cancelled; }, async () => ({status:200, json:async () => { throw cancelled; }})]) {
+    await assert.rejects(createClient(() => 'a', fetcher)('GET', '/recipes'), error => error === cancelled);
+  }
+});
+
+test('serialization errors are not mislabeled as network failures', async () => {
+  const body = {}; body.circular = body;
+  await assert.rejects(createClient(() => 'a', async () => { throw new Error('must not send'); })('POST', '/recipes', body), error => error instanceof TypeError && !(error instanceof ApiError));
 });
 
 test('week totals round raw detail once, include manual nutrition, and count quantities', () => {

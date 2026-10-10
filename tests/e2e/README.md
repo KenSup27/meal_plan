@@ -1,5 +1,18 @@
 # 真实浏览器端到端验收
 
+先运行无需云端账号的页面专项回归（启动不加载环境配置的本地应用，默认 8022）：
+
+```bash
+uvicorn backend.app.main:app --host 127.0.0.1 --port 8022
+# 另一个终端执行：
+MEAL_PREP_E2E_URL=http://127.0.0.1:8022 node tests/e2e/retest-regressions.cjs
+```
+
+该脚本使用合成 Auth/业务响应，操作真实 375px 页面与 Swagger UI；覆盖退出后直接重登、
+注册/错误密码/提交中切模式、缺配置/SDK、初始会话竞态、真实关闭端口后的连接拒绝、
+浏览器离线、HTTP 503、会话取消，以及 Swagger 实际 Bearer 请求头。
+可用 `MEAL_PREP_E2E_ARTIFACTS` 指定截图和结果输出目录。
+
 默认测试不执行云端写入。明确选定测试项目、部署与当前代码相同的数据库升级后才运行。
 需要 Node 22、Playwright 及本机 Chrome；独立安装的 Playwright 可通过 NODE_PATH 指定。
 应用正常启动时加载本地环境文件，包含公开 Supabase URL/key，不需要 service_role。
@@ -14,7 +27,8 @@ MEAL_PREP_E2E_PROJECT=<测试项目引用> \
 脚本创建唯一 UUID 标识的 A/B 专用账号，使用真实 Auth、用户 JWT、FastAPI 和 PostgreSQL。
 覆盖注册/登录/刷新、错误密码、旧全局缓存隔离、基线、两道菜谱、指定菜谱排餐、盘数、
 四项营养精度、生重采购、人工餐、旧版本覆盖拒绝、目标快照、刷新恢复、独立 origin，
-以及 A→B→A 的隔离/越权拒绝和 375px 布局。
+以及 A→B→A 的隔离/越权拒绝和 375px 布局。退出后的直接重登不会先点击模式标签；
+Swagger 使用 B 的真实 token 请求 A 菜谱，并断言请求头正确且返回 404。
 
 运行结束后撤销会话。凭据只保存到输出指定的 `/private/tmp/meal-prep-e2e-<UUID>.json`，
 权限 0600，供本轮恢复及精确清理；不能提交它、浏览器 storageState 或访问令牌。
@@ -29,7 +43,7 @@ MEAL_PREP_E2E_PROJECT=<同一测试项目引用> \
   node tests/e2e/restore.cjs
 ```
 
-该补充流程验证后端重启恢复、模拟服务 503 时保留草稿且不宣称成功、归档菜谱历史读取、
+该补充流程验证后端重启恢复、模拟服务 503 与连接拒绝时保留草稿且不宣称成功、归档菜谱历史读取、
 保留历史/人工餐的整体替换，以及切周不自动创建空计划。它会归档本轮已排餐的测试菜谱。
 独立浏览器存储只能证明服务端恢复，不能代替实际跨设备测试。
 

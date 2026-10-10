@@ -1,6 +1,7 @@
 from typing import Annotated, Protocol
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from backend.app.core.config import settings
 from backend.app.services.auth import AuthProviderError, SupabaseAuthClient
@@ -35,26 +36,34 @@ def get_auth_client() -> SupabaseAuthClient | None:
     return _configured_auth_client
 
 
-def get_current_user_id(
-    authorization: Annotated[str | None, Header()] = None,
-    auth_client: Annotated[AuthClient | None, Depends(get_auth_client)] = None,
-) -> str:
-    """Resolve a real authenticated identity; test adapters are explicit overrides."""
+bearer_scheme = HTTPBearer(auto_error=False, scheme_name="BearerAuth")
 
-    if not authorization:
+
+def get_bearer_token(
+    request: Request,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+) -> str:
+    if not request.headers.get("Authorization"):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="缺少 Authorization Bearer 凭证",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    scheme, _, token = authorization.partition(" ")
-    if scheme.lower() != "bearer" or not token.strip():
+    token = credentials.credentials.strip() if credentials else ""
+    if not token or any(char.isspace() for char in token):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authorization 必须使用 Bearer 凭证",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    token = token.strip()
+    return token
+
+
+def get_current_user_id(
+    token: Annotated[str, Depends(get_bearer_token)],
+    auth_client: Annotated[AuthClient | None, Depends(get_auth_client)] = None,
+) -> str:
+    """Resolve a real authenticated identity; test adapters are explicit overrides."""
     if auth_client is None:
         raise HTTPException(status_code=503, detail="Supabase Auth 尚未配置")
     try:

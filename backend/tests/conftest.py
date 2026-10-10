@@ -9,15 +9,13 @@ from backend.app.repositories.memory import get_repository
 @pytest.fixture(autouse=True)
 def explicit_test_repository():
     # Opaque identities and memory storage exist only as explicit test overrides.
-    from fastapi import Depends, Header, HTTPException
-    from backend.app.core.auth import get_auth_client
+    from fastapi import Depends
+    from backend.app.core.auth import get_auth_client, get_bearer_token
 
-    def identity(authorization: str | None = Header(default=None), auth_client=Depends(get_auth_client)):
+    def identity(token: str = Depends(get_bearer_token), auth_client=Depends(get_auth_client)):
         if auth_client is not None:
-            return get_current_user_id(authorization, auth_client)
-        if not authorization or not authorization.lower().startswith("bearer ") or not authorization[7:].strip():
-            raise HTTPException(401, "缺少 Authorization Bearer 凭证")
-        return authorization[7:].strip()
+            return get_current_user_id(token, auth_client)
+        return token
 
     app.dependency_overrides[get_business_repository] = get_repository
     app.dependency_overrides[get_current_user_id] = identity

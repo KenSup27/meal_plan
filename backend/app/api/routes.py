@@ -1,8 +1,8 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
-from backend.app.core.auth import get_auth_client, get_current_user_id
+from backend.app.core.auth import get_auth_client, get_bearer_token, get_current_user_id
 from backend.app.repositories.dependencies import get_business_repository
 from backend.app.repositories.base import Repository
 from backend.app.schemas.ingredients import (
@@ -79,7 +79,10 @@ def _raise_auth_error(exc: AuthProviderError) -> None:
         status_code = 400
     else:
         status_code = 502 if exc.status_code != 503 else 503
-    raise HTTPException(status_code=status_code, detail=exc.message) from exc
+    raise HTTPException(
+        status_code=status_code, detail=exc.message,
+        headers={"WWW-Authenticate": "Bearer"} if status_code == 401 else None,
+    ) from exc
 
 
 def _require_auth_client(auth_client: SupabaseAuthClient | None) -> SupabaseAuthClient:
@@ -133,17 +136,12 @@ def auth_refresh(
 
 @router.post("/auth/logout", response_model=StatusResponse)
 def auth_logout(
-    authorization: Annotated[str | None, Header()] = None,
+    token: Annotated[str, Depends(get_bearer_token)],
     auth_client: Annotated[SupabaseAuthClient | None, Depends(get_auth_client)] = None,
 ) -> StatusResponse:
     client = _require_auth_client(auth_client)
-    if not authorization:
-        raise HTTPException(status_code=401, detail="缺少 Authorization Bearer 凭证")
-    scheme, _, token = authorization.partition(" ")
-    if scheme.lower() != "bearer" or not token.strip():
-        raise HTTPException(status_code=401, detail="Authorization 必须使用 Bearer 凭证")
     try:
-        client.sign_out(token.strip())
+        client.sign_out(token)
         return StatusResponse(status="ok")
     except AuthProviderError as exc:
         _raise_auth_error(exc)
@@ -151,17 +149,12 @@ def auth_logout(
 
 @router.get("/auth/me", response_model=AuthUserResponse)
 def auth_me(
-    authorization: Annotated[str | None, Header()] = None,
+    token: Annotated[str, Depends(get_bearer_token)],
     auth_client: Annotated[SupabaseAuthClient | None, Depends(get_auth_client)] = None,
 ) -> AuthUserResponse:
     client = _require_auth_client(auth_client)
-    if not authorization:
-        raise HTTPException(status_code=401, detail="缺少 Authorization Bearer 凭证")
-    scheme, _, token = authorization.partition(" ")
-    if scheme.lower() != "bearer" or not token.strip():
-        raise HTTPException(status_code=401, detail="Authorization 必须使用 Bearer 凭证")
     try:
-        user = client.get_user(token.strip())
+        user = client.get_user(token)
         return AuthUserResponse(id=user.id, email=user.email, email_confirmed_at=user.email_confirmed_at)
     except AuthProviderError as exc:
         _raise_auth_error(exc)

@@ -47,6 +47,15 @@ async function api(method, route, body) {
   assert.equal((await api('GET','/recipes')).body.total,2);
   await page.unroute('**/api/v1/recipes');
   check('failed server write preserves draft and never reports success');
+  await page.route('**/api/v1/recipes', route => route.request().method() === 'POST' ? route.abort('connectionrefused') : route.continue());
+  await page.locator('#recipe-form button[type="submit"]').click();
+  await page.waitForFunction(()=>document.querySelector('#toast').textContent.includes('保存结果尚未确认'));
+  assert.equal(await page.locator('#toast').getAttribute('data-tone'),'error');
+  assert.equal(await page.locator('#recipe-form [name="name"]').inputValue(),'必须保留的未保存草稿');
+  assert.equal(await page.locator('#recipe-form button[type="submit"]').isDisabled(),false);
+  await page.unroute('**/api/v1/recipes');
+  assert.equal((await api('GET','/recipes')).body.total,2);
+  check('connection rejection preserves draft and marks write outcome uncertain');
   await page.locator('[data-action="close-editor"]').click();
   const recipe = recipes.find(r=>plan.items.some(i=>i.recipe_id===r.id));
   page.once('dialog',dialog=>dialog.accept());

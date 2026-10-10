@@ -29,14 +29,19 @@ async function api(page, method, route, body) {
     return {status:response.status, body:response.status===204 ? null : await response.json()};
   }, {method,route,body});
 }
-async function login(page, account) {
-  await page.locator('[data-auth-mode="login"]').click();
+async function login(page, account, selectMode = false) {
+  if (selectMode) await page.locator('[data-auth-mode="login"]').click();
   await page.locator('#auth-email').fill(account.email);
   await page.locator('#auth-password').fill(account.password);
   await page.locator('#auth-submit-button').click();
   await ready(page);
 }
-async function logout(page) { await page.locator('#logout-button').click(); await page.locator('#auth-gate').waitFor({state:'visible'}); }
+async function logout(page) {
+  await page.locator('#logout-button').click();
+  await page.locator('#auth-gate').waitFor({state:'visible'});
+  assert.equal(await page.locator('#auth-submit-button').isDisabled(), false);
+  assert.ok(!(await page.locator('#auth-submit-button').textContent()).includes('处理中'));
+}
 async function createRecipe(page, name, rows) {
   await view(page,'recipes');
   await page.locator('[data-action="new-recipe"]').click();
@@ -54,6 +59,27 @@ async function createRecipe(page, name, rows) {
   await page.locator('#recipe-editor').waitFor({state:'hidden'});
   await page.waitForFunction(()=>!document.querySelector('[data-action="new-recipe"]').disabled);
   return recipe;
+}
+async function swaggerCrossAccount(page, recipeId) {
+  const token = await page.evaluate(() => window.MealPrepAuth.getAccessToken());
+  const docs = await browser.newPage();
+  try {
+    await docs.goto(`${base}/docs`);
+    await docs.locator('.auth-wrapper .authorize').click();
+    await docs.locator('.dialog-ux input').fill(token);
+    await docs.locator('.dialog-ux').getByRole('button',{name:'Apply credentials',exact:true}).click();
+    await docs.locator('.dialog-ux').getByRole('button',{name:'Close',exact:true}).click();
+    const operation = docs.locator('#operations-default-recipe_get_api_v1_recipes__recipe_id__get');
+    await operation.locator('.opblock-summary').click();
+    await operation.getByRole('button',{name:'Try it out'}).click();
+    await operation.locator('input[placeholder="recipe_id"]').fill(recipeId);
+    const received = docs.waitForResponse(response => response.url().endsWith(`/api/v1/recipes/${recipeId}`));
+    await operation.getByRole('button',{name:'Execute',exact:true}).click();
+    const response = await received;
+    assert.ok(response.request().headers().authorization === `Bearer ${token}`, 'Swagger must send the current B Bearer token');
+    assert.equal(response.status(),404);
+    check('Swagger sends real B Bearer token and rejects access to A recipe');
+  } finally { await docs.close(); }
 }
 async function addMeal(page, recipe, quantity, meal) {
   await view(page,'recipes');
@@ -84,6 +110,7 @@ async function addMeal(page, recipe, quantity, meal) {
   const refreshed=await page.request.post(`${base}/api/v1/auth/refresh`,{data:{refresh_token:tokens.session.refresh_token}});
   assert.ok((await refreshed.json()).session.access_token);check('backend login and refresh REST sessions');
   await login(page,accounts[0]);
+  await logout(page); await login(page,accounts[0]); check('direct login after logout without mode click or refresh');
   assert.ok(!(await page.locator('.app-shell').textContent()).includes('UNOWNED-LEGACY-SECRET'));check('unowned global cache ignored');
   assert.equal((await api(page,'GET','/recipes')).body.total,0);
   await page.locator('#nutrition-form button[type="submit"]').click();
@@ -146,12 +173,17 @@ async function addMeal(page, recipe, quantity, meal) {
   assert.equal((await api(page,'GET','/profile/baseline')).status,404);
   assert.equal((await api(page,'GET',`/meal-plans/${week}`)).status,404);
   assert.ok(!(await page.locator('.app-shell').textContent()).includes(chicken.name));check('A logout then B signup has no A business data');
+  const bToken = await page.evaluate(() => window.MealPrepAuth.getAccessToken());
+  const bRequest = page.waitForRequest(request => request.url().endsWith(`/api/v1/recipes/${chicken.id}`) && request.method() === 'GET');
   assert.equal((await api(page,'GET',`/recipes/${chicken.id}`)).status,404);
+  assert.ok((await bRequest).headers().authorization === `Bearer ${bToken}`, 'Cross-account request must send B Bearer credentials');
   assert.equal((await api(page,'PATCH',`/recipes/${chicken.id}`,{name:'forbidden'})).status,404);
   assert.equal((await api(page,'DELETE',`/recipes/${chicken.id}`)).status,404);check('cross-account API read edit archive rejected');
+  await swaggerCrossAccount(page,chicken.id);
   await page.screenshot({path:path.join(artifacts,'account-b-empty-375px.png'),fullPage:true});
-  await logout(page);await login(page,accounts[0]);
+  await logout(page);await login(page,accounts[0],true);
   assert.equal((await api(page,'GET','/recipes')).body.total,2);check('A relogin restores own data');
+  assert.equal((await api(page,'GET',`/recipes/${chicken.id}`)).body.name,chicken.name);
   await view(page,'planner');
   await page.screenshot({path:path.join(artifacts,'planner-restored-375px.png'),fullPage:true});
   const width=await page.evaluate(()=>({viewport:innerWidth,content:document.documentElement.scrollWidth}));assert.equal(width.content,width.viewport);check('375px planner has no horizontal overflow',width);
