@@ -1,9 +1,9 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
 from backend.app.domain import MealPlanItemRecord, MealPlanRecord, NutritionValues
-from backend.app.repositories.memory import MemoryRepository
+from backend.app.repositories.base import Repository
 from backend.app.schemas.meal_plans import (
     MealPlanCreate,
     MealPlanItemInput,
@@ -20,13 +20,20 @@ def validate_week_start(week_start: date) -> None:
 
 
 def to_item_record(
-    repository: MemoryRepository,
+    repository: Repository,
     user_id: str,
     item: MealPlanItemInput,
+    existing: MealPlanItemRecord | None = None,
 ) -> MealPlanItemRecord:
     if item.input_mode == "recipe":
         recipe = repository.get_recipe(item.recipe_id)
-        if recipe is None or recipe.user_id != user_id or recipe.archived_at is not None:
+        unchanged = existing is not None and all((
+            str(item.id) == existing.id, item.recipe_id == existing.recipe_id,
+            item.planned_date == existing.planned_date, item.meal_type == existing.meal_type,
+            item.input_mode == existing.input_mode, item.quantity == existing.quantity,
+            item.meal_name == existing.meal_name, item.sort_order == existing.sort_order,
+        ))
+        if recipe is None or recipe.user_id != user_id or (recipe.archived_at is not None and not unchanged):
             raise LookupError("计划餐项引用的菜谱不存在")
         manual_nutrition = None
     else:
@@ -37,7 +44,7 @@ def to_item_record(
             fat_g=item.manual_fat_g,
         )
     return MealPlanItemRecord(
-        id=str(uuid4()),
+        id=str(item.id or uuid4()),
         planned_date=item.planned_date,
         meal_type=item.meal_type,
         input_mode=item.input_mode,
@@ -54,6 +61,7 @@ def to_plan_response(plan: MealPlanRecord) -> MealPlanResponse:
         id=plan.id,
         week_start=plan.week_start,
         status=plan.status,
+        revision=plan.revision,
         target=MealPlanTargetResponse(
             kcal=float(plan.target.kcal),
             protein_g=float(plan.target.protein_g),
@@ -82,7 +90,7 @@ def to_plan_response(plan: MealPlanRecord) -> MealPlanResponse:
 
 
 def create_plan(
-    repository: MemoryRepository,
+    repository: Repository,
     user_id: str,
     request: MealPlanCreate,
 ) -> MealPlanResponse:
@@ -100,11 +108,11 @@ def create_plan(
             fat_g=request.target_fat_g,
         ),
     )
-    repository.create_meal_plan(plan)
+    plan = repository.create_meal_plan(plan)
     return to_plan_response(plan)
 
 
-def get_owned_plan(repository: MemoryRepository, user_id: str, week_start: date) -> MealPlanRecord:
+def get_owned_plan(repository: Repository, user_id: str, week_start: date) -> MealPlanRecord:
     plan = repository.get_meal_plan(user_id, week_start)
     if plan is None:
         raise LookupError("周计划不存在")
@@ -112,24 +120,25 @@ def get_owned_plan(repository: MemoryRepository, user_id: str, week_start: date)
 
 
 def add_item(
-    repository: MemoryRepository,
+    repository: Repository,
     user_id: str,
     week_start: date,
     request: MealPlanItemInput,
 ) -> MealPlanResponse:
     validate_week_start(week_start)
     plan = get_owned_plan(repository, user_id, week_start)
-    if not (week_start <= request.planned_date <= week_start.replace(day=week_start.day + 6)):
+    if not (week_start <= request.planned_date <= week_start + timedelta(days=6)):
         raise ValueError("planned_date 必须位于该周计划内")
-    plan.items.append(to_item_record(repository, user_id, request))
+    plan = repository.add_plan_item(plan, to_item_record(repository, user_id, request))
     return to_plan_response(plan)
 
 
 def replace_items(
-    repository: MemoryRepository,
+    repository: Repository,
     user_id: str,
     week_start: date,
     requests: list[MealPlanItemInput],
+    expected_revision: str | None = None,
 ) -> MealPlanResponse:
     validate_week_start(week_start)
     plan = get_owned_plan(repository, user_id, week_start)
@@ -138,6 +147,7 @@ def replace_items(
     for request in requests:
         if not (week_start <= request.planned_date <= week_end):
             raise ValueError("planned_date 必须位于该周计划内")
-        records.append(to_item_record(repository, user_id, request))
-    plan.items = records
+        existing = next((item for item in plan.items if item.id == str(request.id)), None)
+        records.append(to_item_record(repository, user_id, request, existing))
+    plan = repository.replace_plan_items(plan, records, expected_revision)
     return to_plan_response(plan)

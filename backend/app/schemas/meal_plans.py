@@ -1,6 +1,7 @@
 from datetime import date
 from decimal import Decimal
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -14,17 +15,18 @@ InputMode = Literal["recipe", "manual"]
 class MealPlanCreate(BaseModel):
     week_start: date
     target_kcal: Decimal = Field(gt=0, max_digits=7, decimal_places=1)
-    target_protein_g: Decimal = Field(ge=0, max_digits=7, decimal_places=1)
-    target_carbs_g: Decimal = Field(ge=0, max_digits=7, decimal_places=1)
-    target_fat_g: Decimal = Field(ge=0, max_digits=7, decimal_places=1)
+    target_protein_g: Decimal = Field(ge=0, max_digits=6, decimal_places=1)
+    target_carbs_g: Decimal = Field(ge=0, max_digits=6, decimal_places=1)
+    target_fat_g: Decimal = Field(ge=0, max_digits=6, decimal_places=1)
 
 
 class MealPlanItemInput(BaseModel):
+    id: UUID | None = None
     planned_date: date
     meal_type: MealType
     input_mode: InputMode
     recipe_id: str | None = None
-    meal_name: str | None = Field(default=None, max_length=120)
+    meal_name: str | None = Field(default=None, max_length=80)
     quantity: Decimal | None = Field(default=None, gt=0, max_digits=6, decimal_places=2)
     manual_kcal: Decimal | None = Field(default=None, ge=0, max_digits=8, decimal_places=1)
     manual_protein_g: Decimal | None = Field(default=None, ge=0, max_digits=7, decimal_places=1)
@@ -63,6 +65,7 @@ class MealPlanItemInput(BaseModel):
 
 class MealPlanItemsRequest(BaseModel):
     items: list[MealPlanItemInput] = Field(max_length=100)
+    expected_revision: str | None = Field(default=None, max_length=80)
 
 
 class MealPlanItemResponse(BaseModel):
@@ -88,6 +91,7 @@ class MealPlanResponse(BaseModel):
     id: str
     week_start: date
     status: Literal["draft", "confirmed"]
+    revision: str | None = None
     target: MealPlanTargetResponse
     items: list[MealPlanItemResponse]
 

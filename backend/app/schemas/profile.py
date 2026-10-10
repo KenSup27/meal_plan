@@ -1,7 +1,7 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class BaselineConfirmRequest(BaseModel):
@@ -15,6 +15,15 @@ class BaselineConfirmRequest(BaseModel):
     protein_g: Decimal | None = Field(default=None, ge=0, max_digits=6, decimal_places=1)
     carbs_g: Decimal | None = Field(default=None, ge=0, max_digits=6, decimal_places=1)
     fat_g: Decimal | None = Field(default=None, ge=0, max_digits=6, decimal_places=1)
+
+    @field_validator("activity_factor", mode="before")
+    @classmethod
+    def decimal_activity_factor(cls, value: object) -> Decimal:
+        # JSON numbers such as 1.2 cannot compare exactly with Decimal literals.
+        try:
+            return Decimal(str(value))
+        except InvalidOperation as exc:
+            raise ValueError("无效的活动系数") from exc
 
 
 class BaselineResponse(BaseModel):

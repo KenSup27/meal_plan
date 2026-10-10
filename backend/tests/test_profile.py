@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+import pytest
 
 from backend.app.main import app
 from backend.app.repositories.memory import get_repository
@@ -22,6 +23,28 @@ def baseline_payload() -> dict:
         "activity_factor": 1.375,
         "goal": "cut",
     }
+
+
+@pytest.mark.parametrize("activity_factor", [1.2, 1.375, 1.55])
+def test_baseline_accepts_all_frontend_activity_options(activity_factor: float) -> None:
+    response = client.put(
+        "/api/v1/profile/baseline",
+        json=baseline_payload() | {"activity_factor": activity_factor},
+        headers=AUTH_A,
+    )
+    assert response.status_code == 200
+    assert response.json()["activity_factor"] == activity_factor
+    assert client.get("/api/v1/profile/baseline", headers=AUTH_A).json() == response.json()
+
+
+@pytest.mark.parametrize("activity_factor", [1.3, "invalid", None])
+def test_baseline_rejects_unsupported_activity_options(activity_factor: object) -> None:
+    response = client.put(
+        "/api/v1/profile/baseline",
+        json=baseline_payload() | {"activity_factor": activity_factor},
+        headers=AUTH_A,
+    )
+    assert response.status_code == 422
 
 
 def test_baseline_can_be_manually_adjusted_then_retrieved() -> None:

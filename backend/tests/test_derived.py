@@ -44,6 +44,7 @@ def test_nutrition_summary_includes_recipe_quantity_and_manual_meal() -> None:
     response = client.put(
         f"/api/v1/meal-plans/{WEEK}/items",
         json={
+            "expected_revision": client.get(f"/api/v1/meal-plans/{WEEK}", headers=AUTH).json()["revision"],
             "items": [
                 {
                     "planned_date": WEEK,
@@ -96,6 +97,7 @@ def test_shopping_list_merges_same_ingredient_and_excludes_manual_meal() -> None
     client.put(
         f"/api/v1/meal-plans/{WEEK}/items",
         json={
+            "expected_revision": client.get(f"/api/v1/meal-plans/{WEEK}", headers=AUTH).json()["revision"],
             "items": [
                 {"planned_date": WEEK, "meal_type": "lunch", "input_mode": "recipe", "recipe_id": chicken, "quantity": 2},
                 {"planned_date": WEEK, "meal_type": "dinner", "input_mode": "recipe", "recipe_id": chicken_and_broccoli, "quantity": 1},
@@ -127,5 +129,9 @@ def test_derived_endpoints_report_missing_plan_and_broken_recipe_as_errors() -> 
     )
     client.delete(f"/api/v1/recipes/{recipe_id}", headers=AUTH)
 
+    assert client.get(f"/api/v1/meal-plans/{WEEK}/nutrition", headers=AUTH).status_code == 200
+    assert client.get(f"/api/v1/meal-plans/{WEEK}/shopping-list", headers=AUTH).status_code == 200
+    # Actual missing records still fail instead of silently undercounting.
+    get_repository().recipes.pop(recipe_id)
     assert client.get(f"/api/v1/meal-plans/{WEEK}/nutrition", headers=AUTH).status_code == 409
     assert client.get(f"/api/v1/meal-plans/{WEEK}/shopping-list", headers=AUTH).status_code == 409

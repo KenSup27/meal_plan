@@ -86,7 +86,8 @@ def test_plan_items_support_same_meal_multiple_recipes_and_manual_mode() -> None
         },
     ]
 
-    response = client.put(f"/api/v1/meal-plans/{WEEK}/items", json={"items": items}, headers=AUTH_A)
+    revision = client.get(f"/api/v1/meal-plans/{WEEK}", headers=AUTH_A).json()["revision"]
+    response = client.put(f"/api/v1/meal-plans/{WEEK}/items", json={"items": items, "expected_revision": revision}, headers=AUTH_A)
 
     assert response.status_code == 200
     assert len(response.json()["items"]) == 3

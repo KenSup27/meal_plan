@@ -1,5 +1,5 @@
 from backend.app.domain import IngredientRecord
-from backend.app.repositories.memory import MemoryRepository
+from backend.app.repositories.base import Repository
 from backend.app.schemas.ingredients import IngredientResponse
 
 
@@ -17,7 +17,7 @@ def to_ingredient_response(ingredient: IngredientRecord) -> IngredientResponse:
 
 
 def list_ingredients(
-    repository: MemoryRepository,
+    repository: Repository,
     query: str | None = None,
     category: str | None = None,
 ) -> list[IngredientResponse]:

@@ -9,7 +9,7 @@
 ```bash
 createdb meal_plan_auth_test
 psql -X -v ON_ERROR_STOP=1 -d meal_plan_auth_test -f supabase/tests/bootstrap_local.sql
-psql -X -v ON_ERROR_STOP=1 -d meal_plan_auth_test -f supabase/schema.sql -f supabase/seed.sql
+psql -X -v ON_ERROR_STOP=1 -d meal_plan_auth_test -f supabase/schema.sql -f supabase/seed.sql -f supabase/business.sql
 ```
 
 `bootstrap_local.sql` 只允许数据库名 `meal_plan_auth_test`，禁止用于 Supabase 项目。
@@ -50,6 +50,8 @@ ROLLBACK;
 
 `auth_lifecycle.sql` 中的 `/* APPLY_AUTH_MODULE */` 应替换为 `supabase/auth.sql`
 去除外层 BEGIN/COMMIT 后的内容；pytest 已自动处理。
+`business_rpcs.sql` 中的 `/* APPLY_BUSINESS_MODULE */` 替换为 `supabase/business.sql`；
+覆盖原子写入/回滚、旧版本覆盖拒绝、历史归档保留、RLS 与原始精度汇总。
 Cloud Auth 使用真实 `auth.users` 表，不运行 bootstrap。
 SQL 测试不证明真实密码验证、JWT 签名或会话生命周期通过。
 当前 MVP 使用邮箱＋密码、不要求邮箱验证；云端开关和真实 Auth 端到端验收清单见

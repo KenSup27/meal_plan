@@ -39,12 +39,7 @@ def get_current_user_id(
     authorization: Annotated[str | None, Header()] = None,
     auth_client: Annotated[AuthClient | None, Depends(get_auth_client)] = None,
 ) -> str:
-    """Resolve the current user for the local repository adapter.
-
-    The adapter deliberately treats the bearer token as an opaque user id. A
-    production Supabase integration can replace this dependency with JWT
-    verification without changing the route handlers or service layer.
-    """
+    """Resolve a real authenticated identity; test adapters are explicit overrides."""
 
     if not authorization:
         raise HTTPException(
@@ -61,7 +56,7 @@ def get_current_user_id(
         )
     token = token.strip()
     if auth_client is None:
-        return token
+        raise HTTPException(status_code=503, detail="Supabase Auth 尚未配置")
     try:
         return auth_client.get_user(token).id
     except AuthProviderError as exc:
