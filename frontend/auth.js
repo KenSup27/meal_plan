@@ -29,7 +29,7 @@
     })
     : null;
 
-  const state = { mode: "login", session: null, passwordVisible: false };
+  const state = { mode: "login", session: null, passwordVisible: false, submitting: false };
   body.classList.add("auth-pending");
 
   window.MealPrepAuth = {
@@ -44,12 +44,19 @@
     feedback.dataset.tone = tone;
   }
 
+  function renderSubmission() {
+    submitButton.disabled = !client || state.submitting;
+    submitButton.innerHTML = state.submitting ? "处理中…" : `${state.mode === "signup" ? "创建账号" : "登录"} <span>→</span>`;
+    document.querySelectorAll("[data-auth-mode]").forEach(button => { button.disabled = state.submitting; });
+  }
+
   function setLoading(loading) {
-    submitButton.disabled = loading;
-    submitButton.innerHTML = loading ? "处理中…" : `${state.mode === "signup" ? "创建账号" : "登录"} <span>→</span>`;
+    state.submitting = loading;
+    renderSubmission();
   }
 
   function setMode(mode) {
+    if (state.submitting) return;
     state.mode = mode;
     const isSignup = mode === "signup";
     document.querySelectorAll("[data-auth-mode]").forEach((button) => {
@@ -62,10 +69,11 @@
     passwordConfirmInput.required = isSignup;
     passwordInput.autocomplete = isSignup ? "new-password" : "current-password";
     setFeedback();
-    setLoading(false);
+    renderSubmission();
   }
 
   function authErrorMessage(error) {
+    if (error?.name === "AuthRetryableFetchError") return window.MealPrepApi.networkErrorMessage();
     const message = String(error?.message || "");
     const lower = message.toLowerCase();
     if (lower.includes("invalid login") || lower.includes("invalid credentials")) return "邮箱或密码不正确，请检查后重试。";
@@ -83,11 +91,12 @@
     configNote.innerHTML = hasSdk
       ? "<strong>还差一步配置</strong><span>请在部署环境注入 <code>window.MEAL_PREP_SUPABASE</code>，填写 Supabase 项目 URL 和 publishable key。</span>"
       : "<strong>Supabase SDK 未加载</strong><span>请检查网络或将固定版本的 @supabase/supabase-js 加入部署资源。</span>";
-    submitButton.disabled = true;
+    renderSubmission();
   }
 
   function showAuthenticated(session) {
     state.session = session;
+    setLoading(false);
     passwordInput.value = "";
     passwordConfirmInput.value = "";
     body.classList.remove("auth-pending", "auth-required");
@@ -99,8 +108,9 @@
     window.dispatchEvent(new CustomEvent("mealprep:authchange"));
   }
 
-  function showUnauthenticated() {
+  function showUnauthenticated(resetSubmission = true) {
     state.session = null;
+    if (resetSubmission) setLoading(false);
     body.classList.remove("auth-pending");
     body.classList.add("auth-required");
     authGate.hidden = false;
@@ -111,6 +121,7 @@
   }
 
   async function submitAuth() {
+    if (state.submitting) return;
     if (!client) {
       showConfigurationState();
       return;
@@ -135,14 +146,16 @@
 
     setLoading(true);
     setFeedback();
+    const mode = state.mode;
     try {
-      const result = state.mode === "signup"
+      const result = mode === "signup"
         ? await client.auth.signUp({ email, password })
         : await client.auth.signInWithPassword({ email, password });
       if (result.error) throw result.error;
       if (result.data?.session) {
         showAuthenticated(result.data.session);
-      } else if (state.mode === "signup") {
+      } else if (mode === "signup") {
+        setLoading(false);
         setMode("login");
         setFeedback("注册成功，请使用邮箱和密码登录。", "success");
       } else {
@@ -151,7 +164,7 @@
     } catch (error) {
       setFeedback(authErrorMessage(error), "error");
     } finally {
-      if (!state.session) setLoading(false);
+      setLoading(false);
     }
   }
 
@@ -173,9 +186,14 @@
   logoutButton.addEventListener("click", async () => {
     if (!client) return;
     logoutButton.disabled = true;
-    const { error } = await client.auth.signOut();
-    logoutButton.disabled = false;
-    if (error) setFeedback(authErrorMessage(error), "error");
+    try {
+      const { error } = await client.auth.signOut();
+      if (error) throw error;
+    } catch (error) {
+      setFeedback(authErrorMessage(error), "error");
+    } finally {
+      logoutButton.disabled = false;
+    }
   });
 
   async function boot() {
@@ -183,18 +201,24 @@
       showUnauthenticated();
       return;
     }
-    client.auth.onAuthStateChange((_event, session) => {
+    let authRevision = 0;
+    client.auth.onAuthStateChange((event, session) => {
+      authRevision += 1;
       if (session) showAuthenticated(session);
-      else showUnauthenticated();
+      else showUnauthenticated(event !== "INITIAL_SESSION");
     });
-    const { data, error } = await client.auth.getSession();
-    if (error) {
+    const initialRevision = authRevision;
+    try {
+      const { data, error } = await client.auth.getSession();
+      if (initialRevision !== authRevision) return;
+      if (error) throw error;
+      if (data.session) showAuthenticated(data.session);
+      else showUnauthenticated(false);
+    } catch (error) {
+      if (initialRevision !== authRevision) return;
       setFeedback(authErrorMessage(error), "error");
-      showUnauthenticated();
-      return;
+      showUnauthenticated(false);
     }
-    if (data.session) showAuthenticated(data.session);
-    else showUnauthenticated();
   }
 
   setMode("login");

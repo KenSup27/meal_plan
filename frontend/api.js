@@ -4,19 +4,33 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
   class ApiError extends Error {
-    constructor(status, message) { super(message); this.status = status; }
+    constructor(status, message, kind = "http") { super(message); this.name = "ApiError"; this.status = status; this.kind = kind; }
+  }
+  function networkErrorMessage(method = "GET") {
+    return ["GET", "HEAD"].includes(method.toUpperCase())
+      ? "无法连接服务，请检查网络后重新加载。"
+      : "连接中断，保存结果尚未确认。请先重新加载确认，再决定是否重试；当前草稿已保留。";
   }
   function createClient(getToken, fetcher = fetch) {
     return async function request(method, path, body, signal) {
       const token = getToken();
       if (!token) throw new ApiError(401, "请先登录");
-      const response = await fetcher(`/api/v1${path}`, {
+      const options = {
         method, signal, headers: { Authorization: `Bearer ${token}`, ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-      });
+      };
+      let response;
+      try { response = await fetcher(`/api/v1${path}`, options); }
+      catch (error) {
+        if (error.name === "AbortError") throw error;
+        throw new ApiError(0, networkErrorMessage(method), "network");
+      }
       if (response.status === 204) return null;
       let payload;
-      try { payload = await response.json(); } catch (_) { throw new ApiError(response.status, "服务响应异常，请稍后重试"); }
+      try { payload = await response.json(); } catch (error) {
+        if (error.name === "AbortError") throw error;
+        throw new ApiError(response.status, "服务响应异常，请稍后重试");
+      }
       if (!response.ok) throw new ApiError(response.status, typeof payload.detail === "string" ? payload.detail : "保存内容无效，请检查后重试");
       return payload;
     };
@@ -37,5 +51,5 @@
       },
     };
   }
-  return { ApiError, createClient, createSessionScope };
+  return { ApiError, networkErrorMessage, createClient, createSessionScope };
 });
