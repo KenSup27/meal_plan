@@ -20,3 +20,9 @@ build/
 *.egg-info/
 .idea/
 .vscode/
+
+# Local E2E reports, screenshots and credential manifests
+/reports/
+meal-prep-e2e-*.json
+meal-prep-e2e-private-*/
+**/storageState*.json

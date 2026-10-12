@@ -5,9 +5,11 @@ const http = require('node:http');
 const path = require('node:path');
 const {chromium} = require('playwright');
 const base = process.env.MEAL_PREP_E2E_URL || 'http://127.0.0.1:8022';
-const artifacts = process.env.MEAL_PREP_E2E_ARTIFACTS;
+const {createRun} = require('./artifacts.cjs');
+const {run, artifacts} = createRun('regressions');
+console.log(JSON.stringify({run, artifacts}));
 assert.ok(['127.0.0.1', 'localhost'].includes(new URL(base).hostname));
-if (artifacts) fs.mkdirSync(artifacts, {recursive:true});
+
 const checks = [];
 const check = name => { checks.push(name); console.log(`PASS ${name}`); };
 const browserErrors = [];

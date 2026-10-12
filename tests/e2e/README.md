@@ -20,7 +20,7 @@ MEAL_PREP_E2E_URL=http://127.0.0.1:8022 node tests/e2e/retest-regressions.cjs
 ```bash
 uvicorn backend.app.main:app --env-file .env --host 127.0.0.1 --port 8021
 MEAL_PREP_E2E_PROJECT=<测试项目引用> \
-  MEAL_PREP_E2E_ARTIFACTS=/private/tmp/meal-prep-e2e-artifacts \
+  MEAL_PREP_E2E_ARTIFACTS=reports/e2e \
   node --env-file=.env tests/e2e/hosted.cjs
 ```
 
@@ -30,16 +30,16 @@ MEAL_PREP_E2E_PROJECT=<测试项目引用> \
 以及 A→B→A 的隔离/越权拒绝和 375px 布局。退出后的直接重登不会先点击模式标签；
 Swagger 使用 B 的真实 token 请求 A 菜谱，并断言请求头正确且返回 404。
 
-运行结束后撤销会话。凭据只保存到输出指定的 `/private/tmp/meal-prep-e2e-<UUID>.json`，
-权限 0600，供本轮恢复及精确清理；不能提交它、浏览器 storageState 或访问令牌。
+运行结束后撤销会话。凭据只保存到输出指定的 `<hosted 输出的 manifest 绝对路径>`，
+位于系统临时目录的独立 `meal-prep-e2e-private-*` 目录（目录权限 0700、文件权限 0600），供本轮恢复及精确清理；不能提交它、浏览器 storageState 或访问令牌。
 截图和 result.json 是验收证据；不要把包含真实用户数据的产物上传仓库。
 
 停掉本轮应用后重新启动，再使用同一份临时清单验证持久化和故障行为：
 
 ```bash
 MEAL_PREP_E2E_PROJECT=<同一测试项目引用> \
-  MEAL_PREP_E2E_MANIFEST=/private/tmp/meal-prep-e2e-<UUID>.json \
-  MEAL_PREP_E2E_ARTIFACTS=/private/tmp/meal-prep-e2e-artifacts \
+  MEAL_PREP_E2E_MANIFEST=<hosted 输出的 manifest 绝对路径> \
+  MEAL_PREP_E2E_ARTIFACTS=reports/e2e \
   node tests/e2e/restore.cjs
 ```
 
@@ -53,3 +53,42 @@ MEAL_PREP_E2E_PROJECT=<同一测试项目引用> \
 必须使用 UUID 与精确邮箱的联合匹配，不能按前缀批量删除。
 完整性函数需与 `supabase/integrity.sql` 同步，以支持已删除父记录的约束检查。
 最后核对用户、Profile、菜谱/食材明细、计划/餐项回到运行前计数，再删除临时凭据清单。
+
+## 报告目录与查看
+
+默认输出固定解析到项目根目录下的 `reports/e2e/<run-id>/`，与启动命令的工作目录无关。
+`hosted.cjs` 和 `retest-regressions.cjs` 每次生成新的 UUID，不覆盖既有报告。
+设置 `MEAL_PREP_E2E_ARTIFACTS` 可指定输出**根目录**，脚本仍追加 `<run-id>/`；
+相对路径按项目根目录解析，绝对路径直接使用。旧版“变量直接指定最终目录”的含义已变更。
+使用项目内自定义路径时，应放在已忽略的 `reports/` 下；不要将产物放到源码目录或提交它们。
+
+脚本启动时输出运行 ID 与产物绝对路径。直接打开目录中的 JSON 和 PNG 查看结果：
+
+```text
+reports/e2e/<hosted-run-id>/
+  run.json
+  result.json
+  *.png
+  restore/<restore-attempt-id>/restore-result.json
+reports/e2e/<regression-run-id>/
+  run.json
+  regression-result.json
+  *.png
+```
+
+`restore.cjs` 必须设置 `MEAL_PREP_E2E_MANIFEST` 为前序 hosted 输出的清单路径。
+不设置产物变量时，使用 Manifest 记录的原报告目录；若显式设置，则该根目录下必须
+已经存在同一运行 ID 的 hosted `run.json`，不会创建无关运行。每次恢复验证在原运行内
+创建新的 `restore/<UUID>/` 子目录，重复执行也不会覆盖。旧清单无报告路径时仅尝试
+默认目录下的匹配标记；旧版运行没有标记时会明确失败，不会擅自创建目录。
+
+Manifest 含密码，始终在项目外的私有临时目录，不写入报告目录。普通报告只记录运行元数据，
+不复制 Manifest；报告仍可能含测试邮箱和业务数据，整个 `reports/` 已忽略。
+`result.json` 等最终文件只有成功走到对应写入点才生成；仅有 `run.json` 不表示测试通过。
+清理测试账号和会话后，按精确路径清理私有清单，保留需要的普通报告。
+
+仅验证路径管理、不启动浏览器或连接数据库：
+
+```bash
+node --test tests/e2e/artifacts.test.cjs
+```
