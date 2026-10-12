@@ -106,3 +106,12 @@ SQL 不会配置 Auth 服务开关。`supabase/auth-policy.json` 是目标配置
 * [数据库测试与云端冒烟说明](supabase/tests/README.md)
 
 * [本次修复及端到端验收](docs/reviews/2026-10-10-unified-fixes-e2e.md)
+
+## E2E 报告
+
+浏览器测试的普通报告和截图默认保存到项目内 `reports/e2e/<run-id>/`，每次运行独立，
+不依赖启动时的工作目录。打开对应目录中的 JSON 报告和 PNG 截图查看；控制台会输出绝对路径。
+`MEAL_PREP_E2E_ARTIFACTS` 可覆盖输出根目录，运行 ID 仍会追加。
+恢复测试关联前序 hosted Manifest，并写入原运行的 `restore/<UUID>/` 子目录。
+含账号凭据的 Manifest 单独保存在项目外私有临时目录；`reports/` 不提交 Git。
+执行方式、前置条件与清理要求见 [E2E 说明](tests/e2e/README.md)。

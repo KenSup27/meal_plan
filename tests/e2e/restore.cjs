@@ -2,9 +2,10 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const {chromium} = require('playwright');
-const manifest = JSON.parse(fs.readFileSync(process.env.MEAL_PREP_E2E_MANIFEST, 'utf8'));
+const {restoreRun} = require('./artifacts.cjs');
+const {manifest, artifacts} = restoreRun();
+console.log(JSON.stringify({run: manifest.run, artifacts}));
 const base = process.env.MEAL_PREP_E2E_URL || 'http://127.0.0.1:8021';
-const artifacts = process.env.MEAL_PREP_E2E_ARTIFACTS;
 assert.equal(manifest.project, process.env.MEAL_PREP_E2E_PROJECT);
 assert.ok(['127.0.0.1', 'localhost'].includes(new URL(base).hostname));
 const account = manifest.accounts[0];
